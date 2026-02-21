@@ -17,7 +17,15 @@
       "Bash(gh repo create:*)",
       "Bash(git -C /home/paul/projects/DnD-project init)",
       "Bash(git -C /home/paul/projects/DnD-project add .)",
-      "Bash(git -C /home/paul/projects/DnD-project commit -m \"Initial commit\")"
+      "Bash(git -C /home/paul/projects/DnD-project commit -m \"Initial commit\")",
+      "WebSearch",
+      "Bash(black:*)",
+      "Bash(mypy:*)",
+      "Bash(alembic revision:*)",
+      "Bash(alembic upgrade:*)",
+      "Bash(pip install:*)",
+      "Bash(.venv/bin/black:*)",
+      "Bash(.venv/bin/pytest:*)"
     ]
   }
 }

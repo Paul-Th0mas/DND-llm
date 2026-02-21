@@ -1,0 +1,38 @@
+import uuid
+from datetime import datetime
+
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Uuid
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.db.base import Base
+
+
+class RoomORM(Base):
+    __tablename__ = "rooms"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    dm_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    invite_code: Mapped[str] = mapped_column(
+        String(8), unique=True, index=True, nullable=False
+    )
+    max_players: Mapped[int] = mapped_column(Integer, nullable=False, default=8)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+
+
+class RoomPlayerORM(Base):
+    __tablename__ = "room_players"
+
+    # Composite primary key: one row per (room, user) pair.
+    room_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("rooms.id", ondelete="CASCADE"), primary_key=True
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    joined_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
