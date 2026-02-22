@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip3:*)",
+      "Bash(python3 -m pip:*)",
+      "Bash(apt list:*)",
+      "Bash(sudo apt-get install:*)",
+      "Bash(python3 -m venv:*)",
+      "Bash(.venv/bin/pip install:*)",
+      "Bash(.venv/bin/python:*)",
+      "Bash(.venv/bin/mypy:*)",
+      "Bash(echo:*)",
+      "Bash(wslg --version:*)",
+      "Bash(wget:*)",
+      "Bash(sudo dpkg:*)",
+      "Bash(git config:*)",
+      "Bash(gh repo create:*)",
+      "Bash(git -C /home/paul/projects/DnD-project init)",
+      "Bash(git -C /home/paul/projects/DnD-project add .)",
+      "Bash(git -C /home/paul/projects/DnD-project commit -m \"Initial commit\")",
+      "WebSearch",
+      "Bash(black:*)",
+      "Bash(mypy:*)",
+      "Bash(alembic revision:*)",
+      "Bash(alembic upgrade:*)",
+      "Bash(pip install:*)",
+      "Bash(.venv/bin/black:*)",
+      "Bash(.venv/bin/pytest:*)",
+      "Bash(git:*122)"
+    ]
+  }
+}

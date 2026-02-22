@@ -1,0 +1,9 @@
+[tool.black]
+line-length = 88
+target-version = ["py311"]
+
+[tool.pytest.ini_options]
+# Add project root to sys.path so `import app.*` works in tests without
+# installing the package. Requires pytest >= 7.0.
+pythonpath = ["."]
+testpaths = ["tests"]
