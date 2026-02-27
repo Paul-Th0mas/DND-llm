@@ -1,0 +1,45 @@
+# Dependencies — reinstalled inside the image
+node_modules
+npm-debug.log*
+yarn-error.log
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+
+# Next.js build output — rebuilt inside the image
+.next
+out
+
+# Local environment files — never bake secrets into an image
+.env
+.env.*
+!.env.example
+
+# Development and testing artifacts
+coverage
+.nyc_output
+vitest.config.ts
+vitest.setup.ts
+**/__tests__
+**/*.test.ts
+**/*.test.tsx
+
+# Version control
+.git
+.gitignore
+
+# Editor and OS artifacts
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.vscode
+.idea
+
+# Docker files (no need to copy into the image)
+Dockerfile
+.dockerignore
+docker-compose.yml
+
+# Docs
+README.md

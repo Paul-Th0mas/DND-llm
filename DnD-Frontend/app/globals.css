@@ -1,0 +1,31 @@
+@import "tailwindcss";
+
+:root {
+  --background: #F9F8F6;
+  --foreground: #3a2e26;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+
+  /* DnD Earth Tone Palette */
+  --color-parchment-50: #F9F8F6;
+  --color-parchment-100: #EFE9E3;
+  --color-parchment-200: #D9CFC7;
+  --color-parchment-300: #C9B59C;
+  --color-parchment-400: #b89a7e;
+  --color-parchment-500: #a07d60;
+  --color-parchment-600: #7d5e45;
+  --color-parchment-700: #5c4230;
+  --color-parchment-800: #3a2820;
+  --color-parchment-900: #1e1410;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
