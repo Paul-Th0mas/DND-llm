@@ -11,7 +11,7 @@ RUN apk add --no-cache libc6-compat
 
 WORKDIR /app
 
-COPY package.json yarn.lock ./
+COPY frontend/package.json frontend/yarn.lock ./
 
 RUN yarn install --frozen-lockfile
 
@@ -28,8 +28,8 @@ WORKDIR /app
 # Copy dependencies from the deps stage
 COPY --from=deps /app/node_modules ./node_modules
 
-# Copy all source files
-COPY . .
+# Copy all source files from frontend directory
+COPY frontend .
 
 # Disable Next.js telemetry during the build
 ENV NEXT_TELEMETRY_DISABLED=1
