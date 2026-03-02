@@ -1,3 +1,4 @@
+# --- FRONTEND ---
 # Dependencies — reinstalled inside the image
 node_modules
 npm-debug.log*
@@ -43,3 +44,21 @@ docker-compose.yml
 
 # Docs
 README.md
+
+# --- BACKEND ---
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+env
+venv
+.venv
+ENV
+.env
+.tox
+.coverage
+htmlcov
+.pytest_cache
+.mypy_cache
+.ruff_cache
