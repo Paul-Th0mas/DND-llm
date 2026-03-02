@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xargs ls -lh)",
+      "Bash(cd /home/paul/projects/DnD-project/DND-Backend && python -m pytest tests/worlds/ -v 2>&12)",
+      "Bash(python3:*)",
+      "Bash(.venv/bin/python:*)"
+    ]
+  }
+}
