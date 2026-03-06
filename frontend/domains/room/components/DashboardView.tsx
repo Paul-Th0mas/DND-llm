@@ -6,9 +6,13 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import Button from "@mui/material/Button";
 import AddIcon from "@mui/icons-material/Add";
+import MapIcon from "@mui/icons-material/Map";
 import MeetingRoomIcon from "@mui/icons-material/MeetingRoom";
 import { useAuthStore, selectUser } from "@/shared/store/auth.store";
 import { useAuth } from "@/domains/auth/hooks/useAuth";
+import { CreateWorldWizard } from "@/domains/world/components/CreateWorldWizard";
+import { CreateCampaignWizard } from "@/domains/campaign/components/CreateCampaignWizard";
+import { selectGeneratedWorld, useWorldStore } from "@/domains/world/store/world.store";
 import { CreateRoomDialog } from "./CreateRoomDialog";
 import { JoinRoomPanel } from "./JoinRoomPanel";
 
@@ -21,7 +25,10 @@ export function DashboardView(): React.ReactElement {
   const user = useAuthStore(selectUser);
   const { logout } = useAuth();
   const router = useRouter();
-  const [createOpen, setCreateOpen] = useState(false);
+  const [worldWizardOpen, setWorldWizardOpen] = useState(false);
+  const [campaignWizardOpen, setCampaignWizardOpen] = useState(false);
+  const [createRoomOpen, setCreateRoomOpen] = useState(false);
+  const generatedWorld = useWorldStore(selectGeneratedWorld);
 
   if (!user) {
     // This state is transient — AuthProvider will redirect to /login.
@@ -113,28 +120,58 @@ export function DashboardView(): React.ReactElement {
           </Typography>
           <Typography variant="body1" color="text.secondary">
             {isDm
-              ? "Create a new room or continue an existing session."
+              ? "Generate a world, then open a room for your players."
               : "Enter an invite code to join a game."}
           </Typography>
         </Box>
 
         {isDm ? (
-          <Button
-            variant="contained"
-            size="large"
-            startIcon={<AddIcon />}
-            onClick={() => setCreateOpen(true)}
-            sx={{
-              textTransform: "none",
-              fontWeight: 600,
-              fontSize: "1rem",
-              borderRadius: 2.5,
-              px: 4,
-              py: 1.5,
-            }}
-          >
-            Create Room
-          </Button>
+          <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+            <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap", justifyContent: "center" }}>
+              <Button
+                variant="contained"
+                size="large"
+                startIcon={<AddIcon />}
+                onClick={() => setWorldWizardOpen(true)}
+                sx={{
+                  textTransform: "none",
+                  fontWeight: 600,
+                  fontSize: "1rem",
+                  borderRadius: 2.5,
+                  px: 4,
+                  py: 1.5,
+                }}
+              >
+                Generate World
+              </Button>
+              <Button
+                variant="outlined"
+                size="large"
+                startIcon={<AddIcon />}
+                onClick={() => setCampaignWizardOpen(true)}
+                sx={{
+                  textTransform: "none",
+                  fontWeight: 600,
+                  fontSize: "1rem",
+                  borderRadius: 2.5,
+                  px: 4,
+                  py: 1.5,
+                }}
+              >
+                Create Campaign
+              </Button>
+            </Box>
+            {generatedWorld !== null && (
+              <Button
+                variant="text"
+                startIcon={<MapIcon />}
+                onClick={() => router.push("/world")}
+                sx={{ textTransform: "none", color: "text.secondary" }}
+              >
+                View Generated World
+              </Button>
+            )}
+          </Box>
         ) : (
           <Box sx={{ width: "100%", maxWidth: 400 }}>
             <JoinRoomPanel />
@@ -155,9 +192,25 @@ export function DashboardView(): React.ReactElement {
       </Box>
 
       {isDm && (
+        <CreateWorldWizard
+          open={worldWizardOpen}
+          onClose={() => setWorldWizardOpen(false)}
+          onProceedToCreateRoom={() => setCreateRoomOpen(true)}
+        />
+      )}
+
+      {isDm && (
+        <CreateCampaignWizard
+          open={campaignWizardOpen}
+          onClose={() => setCampaignWizardOpen(false)}
+          onCreated={(id) => router.push(`/campaign/${id}/world`)}
+        />
+      )}
+
+      {isDm && (
         <CreateRoomDialog
-          open={createOpen}
-          onClose={() => setCreateOpen(false)}
+          open={createRoomOpen}
+          onClose={() => setCreateRoomOpen(false)}
         />
       )}
     </Box>
