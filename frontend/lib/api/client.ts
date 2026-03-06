@@ -1,6 +1,43 @@
 // Base URL for all API requests. Must be set via NEXT_PUBLIC_API_URL environment variable.
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 
+/**
+ * Typed error thrown by all API helpers when the server returns a non-ok status.
+ * Carries the HTTP status code and the detail message from the response body so
+ * callers can distinguish e.g. 400 (validation) from 404 (not found) from 429 (quota).
+ */
+export class ApiError extends Error {
+  /** HTTP status code returned by the server. */
+  readonly status: number;
+  /** The `detail` field from the JSON error body, if present. */
+  readonly detail: string;
+
+  constructor(status: number, detail: string) {
+    super(`API error ${status}: ${detail}`);
+    this.name = "ApiError";
+    this.status = status;
+    this.detail = detail;
+  }
+}
+
+/**
+ * Reads the response body and throws an ApiError with the status code and
+ * the `detail` field from the JSON body (matching FastAPI's error shape).
+ * Falls back to the status text if the body cannot be parsed.
+ */
+async function throwApiError(response: Response): Promise<never> {
+  let detail = response.statusText;
+  try {
+    const body = (await response.json()) as { detail?: string };
+    if (typeof body.detail === "string") {
+      detail = body.detail;
+    }
+  } catch {
+    // Body was not JSON — keep statusText as the detail.
+  }
+  throw new ApiError(response.status, detail);
+}
+
 // Default headers applied to every request.
 const DEFAULT_HEADERS: HeadersInit = {
   "Content-Type": "application/json",
@@ -24,7 +61,7 @@ export async function apiGet<T>(
   });
 
   if (!response.ok) {
-    throw new Error(`GET ${path} failed with status ${response.status}`);
+    await throwApiError(response);
   }
 
   return response.json() as Promise<T>;
@@ -51,7 +88,7 @@ export async function apiPost<T>(
   });
 
   if (!response.ok) {
-    throw new Error(`POST ${path} failed with status ${response.status}`);
+    await throwApiError(response);
   }
 
   return response.json() as Promise<T>;
@@ -78,7 +115,7 @@ export async function apiPut<T>(
   });
 
   if (!response.ok) {
-    throw new Error(`PUT ${path} failed with status ${response.status}`);
+    await throwApiError(response);
   }
 
   return response.json() as Promise<T>;
@@ -102,7 +139,7 @@ export async function apiDelete<T>(
   });
 
   if (!response.ok) {
-    throw new Error(`DELETE ${path} failed with status ${response.status}`);
+    await throwApiError(response);
   }
 
   return response.json() as Promise<T>;
