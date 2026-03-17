@@ -5,30 +5,15 @@ import Chip from "@mui/material/Chip";
 import Typography from "@mui/material/Typography";
 import type { NarratedRoomResponse, RoomType } from "@/domains/world/types";
 
-// Colour mapping for each room type badge.
-// Using MUI colour tokens that align with the project palette.
-const ROOM_TYPE_COLORS: Record<
-  RoomType,
-  "error" | "success" | "warning" | "info" | "default" | "primary"
-> = {
+/** Color mapping for room type badges. */
+const ROOM_TYPE_COLORS: Record<RoomType, "error" | "success" | "warning" | "secondary" | "primary" | "info"> = {
   BOSS: "error",
   REST: "success",
   SHOP: "warning",
-  TREASURE: "warning",
-  COMBAT: "error",
+  COMBAT: "secondary",
+  TREASURE: "primary",
   EVENT: "info",
 };
-
-/**
- * Converts a SCREAMING_SNAKE_CASE enum value to Title Case for display.
- * @param value - The raw enum string (e.g. "MEDIEVAL_FANTASY").
- * @returns A human-readable label (e.g. "Medieval Fantasy").
- */
-function toLabel(value: string): string {
-  return value
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase());
-}
 
 /** Props for the RoomCard component. */
 interface RoomCardProps {
@@ -36,12 +21,11 @@ interface RoomCardProps {
 }
 
 /**
- * Displays a single generated dungeon room with its type badge, name,
- * description, enemy list, NPC list, and any special notes.
- * Used inside GeneratedWorldView as a card per room.
+ * Displays a single narrated room card with its type badge, name, description,
+ * enemy names, NPC names, and any special notes.
  */
 export function RoomCard({ room }: RoomCardProps): React.ReactElement {
-  const badgeColor = ROOM_TYPE_COLORS[room.room_type] ?? "default";
+  const chipColor = ROOM_TYPE_COLORS[room.room_type];
 
   return (
     <Box
@@ -56,42 +40,41 @@ export function RoomCard({ room }: RoomCardProps): React.ReactElement {
         gap: 1,
       }}
     >
-      {/* Room header: index, type badge, name */}
+      {/* Header: room type badge and name */}
       <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
-        <Typography variant="caption" color="text.secondary" sx={{ minWidth: 24 }}>
-          {room.index + 1}.
-        </Typography>
         <Chip
-          label={toLabel(room.room_type)}
+          label={room.room_type}
           size="small"
-          color={badgeColor}
-          sx={{ fontWeight: 600, fontSize: "0.7rem" }}
+          color={chipColor}
+          variant="filled"
+          sx={{ fontWeight: 700, fontSize: "0.65rem" }}
         />
         <Typography variant="subtitle2" fontWeight={600}>
           {room.name}
         </Typography>
       </Box>
 
+      {/* Description */}
       <Typography variant="body2" color="text.secondary">
         {room.description}
       </Typography>
 
       {/* Enemies */}
       {room.enemy_names.length > 0 && (
-        <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap", alignItems: "center" }}>
-          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, alignItems: "center" }}>
+          <Typography variant="caption" color="text.disabled" sx={{ mr: 0.25 }}>
             Enemies:
           </Typography>
           {room.enemy_names.map((name) => (
-            <Chip key={name} label={name} size="small" variant="outlined" />
+            <Chip key={name} label={name} size="small" color="error" variant="outlined" />
           ))}
         </Box>
       )}
 
       {/* NPCs */}
       {room.npc_names.length > 0 && (
-        <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap", alignItems: "center" }}>
-          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, alignItems: "center" }}>
+          <Typography variant="caption" color="text.disabled" sx={{ mr: 0.25 }}>
             NPCs:
           </Typography>
           {room.npc_names.map((name) => (
@@ -101,11 +84,11 @@ export function RoomCard({ room }: RoomCardProps): React.ReactElement {
       )}
 
       {/* Special notes */}
-      {room.special_notes !== null && (
+      {room.special_notes && (
         <Typography
           variant="caption"
           color="text.secondary"
-          sx={{ fontStyle: "italic", mt: 0.5 }}
+          sx={{ fontStyle: "italic", borderTop: "1px solid", borderColor: "divider", pt: 0.75, mt: 0.25 }}
         >
           {room.special_notes}
         </Typography>

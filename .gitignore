@@ -183,9 +183,9 @@ cython_debug/
 # --- FRONTEND ---
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
-# dependencies
-/node_modules
-/.pnp
+# dependencies — no leading slash so this matches frontend/node_modules too
+node_modules/
+.pnp
 .pnp.*
 .yarn/*
 !.yarn/patches
@@ -194,14 +194,14 @@ cython_debug/
 !.yarn/versions
 
 # testing
-/coverage
+coverage/
 
-# next.js
-/.next/
-/out/
+# next.js — no leading slash so this matches frontend/.next too
+.next/
+out/
 
 # production
-/build
+build/
 
 # misc
 .DS_Store
@@ -223,5 +223,8 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# claude code local memory
+# claude code
 .claude/
+CLAUDE.md
+*.md
+.agent-task-*.md

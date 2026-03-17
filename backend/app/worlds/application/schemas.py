@@ -4,171 +4,123 @@ Pydantic DTOs for the worlds bounded context.
 These are Data Transfer Objects — they live at the application layer boundary
 between the API (HTTP) and the domain. They are NOT domain models.
 
-Inbound:  WorldSettingsRequest  → converted to WorldSettings domain object
-Outbound: GeneratedWorldResponse ← converted from GeneratedWorld domain object
+Outbound:
+  WorldSummaryResponse  — used for GET /worlds (list, no factions/bosses)
+  WorldDetailResponse   — used for GET /worlds/{id} (full detail)
+
+hidden_agenda on factions is intentionally excluded from all response schemas.
+It is DM-only lore stored in the domain but never surfaced to the API.
 """
 
 import logging
+import uuid
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
-from app.worlds.domain.models import (
-    Difficulty,
-    GeneratedWorld,
-    MainQuest,
-    NarratedRoom,
-    QuestFocus,
-    ROOM_COUNT_MAX,
-    ROOM_COUNT_MIN,
-    RoomType,
-    Theme,
-    WorldSettings,
-)
+from app.worlds.domain.models import PresetBoss, PresetFaction, Theme, World
 
 logger = logging.getLogger(__name__)
 
 
-class WorldOptionsResponse(BaseModel):
+class PresetFactionResponse(BaseModel):
     """
-    Outbound DTO for GET /worlds/options.
+    Outbound DTO for a single faction.
 
-    Returns all valid enum values for world generation settings so the
-    frontend can populate dropdowns dynamically without hardcoding them.
-    Also exposes the room_count bounds so the frontend slider stays in sync.
+    hidden_agenda is omitted — DM-facing detail available only in
+    the narrative context passed to the LLM narrator.
     """
-
-    themes: list[str]
-    difficulties: list[str]
-    quest_focuses: list[str]
-    room_types: list[str]
-    room_count_min: int
-    room_count_max: int
-
-    @classmethod
-    def from_domain(cls, theme: Theme | None = None) -> "WorldOptionsResponse":
-        """
-        Build the response from the domain enums and constants.
-
-        theme is accepted for future theme-specific filtering. Currently all
-        enum values are valid regardless of theme. When filtering is needed,
-        replace the list comprehensions with a domain mapping such as
-        THEME_QUEST_FOCUS_MAP[theme] defined in domain/models.py.
-        """
-        logger.debug("Building WorldOptionsResponse: theme_filter=%s", theme)
-        return cls(
-            themes=[t.value for t in Theme],
-            difficulties=[d.value for d in Difficulty],
-            quest_focuses=[q.value for q in QuestFocus],
-            room_types=[r.value for r in RoomType],
-            room_count_min=ROOM_COUNT_MIN,
-            room_count_max=ROOM_COUNT_MAX,
-        )
-
-
-class WorldSettingsRequest(BaseModel):
-    """
-    Inbound DTO for POST /worlds/generate.
-
-    Pydantic validates field types and the ge/le constraints on room_count
-    and party_size. Domain-level rules (e.g. business meaning of room_count
-    bounds) are enforced by WorldSettings.validate() after to_domain() is called.
-    """
-
-    theme: Theme
-    difficulty: Difficulty
-    room_count: int = Field(default=10, ge=5, le=15)
-    quest_focus: QuestFocus
-    dm_notes: str | None = None
-    party_size: int = Field(default=1, ge=1, le=6)
-
-    def to_domain(self) -> WorldSettings:
-        """Convert this request DTO into a domain value object."""
-        logger.debug(
-            "Converting WorldSettingsRequest to domain: theme=%s rooms=%d",
-            self.theme,
-            self.room_count,
-        )
-        return WorldSettings(
-            theme=self.theme,
-            difficulty=self.difficulty,
-            room_count=self.room_count,
-            quest_focus=self.quest_focus,
-            dm_notes=self.dm_notes,
-            party_size=self.party_size,
-        )
-
-
-class NarratedRoomResponse(BaseModel):
-    """Output DTO representing a single room in the generated world."""
-
-    index: int
-    room_type: RoomType
-    name: str
-    description: str
-    enemy_names: list[str]
-    npc_names: list[str]
-    special_notes: str | None = None
-
-    @classmethod
-    def from_domain(cls, room: NarratedRoom) -> "NarratedRoomResponse":
-        """Convert a NarratedRoom domain value object into this response DTO."""
-        return cls(
-            index=room.index,
-            room_type=room.room_type,
-            name=room.name,
-            description=room.description,
-            enemy_names=list(room.enemy_names),
-            npc_names=list(room.npc_names),
-            special_notes=room.special_notes,
-        )
-
-
-class MainQuestResponse(BaseModel):
-    """Output DTO representing the generated main quest."""
 
     name: str
     description: str
-    stages: list[str]
+    alignment: str
+    public_reputation: str
 
     @classmethod
-    def from_domain(cls, quest: MainQuest) -> "MainQuestResponse":
-        """Convert a MainQuest domain value object into this response DTO."""
+    def from_domain(cls, faction: PresetFaction) -> "PresetFactionResponse":
+        """Convert a PresetFaction domain value object into this response DTO."""
         return cls(
-            name=quest.name,
-            description=quest.description,
-            stages=list(quest.stages),
+            name=faction.name,
+            description=faction.description,
+            alignment=faction.alignment,
+            public_reputation=faction.public_reputation,
         )
 
 
-class GeneratedWorldResponse(BaseModel):
-    """
-    Full outbound response for POST /worlds/generate.
+class PresetBossResponse(BaseModel):
+    """Outbound DTO for a single preset boss."""
 
-    Returned to the DM after successful world generation.
+    name: str
+    description: str
+    challenge_rating: str
+    abilities: list[str]
+    lore: str
+
+    @classmethod
+    def from_domain(cls, boss: PresetBoss) -> "PresetBossResponse":
+        """Convert a PresetBoss domain value object into this response DTO."""
+        return cls(
+            name=boss.name,
+            description=boss.description,
+            challenge_rating=boss.challenge_rating,
+            abilities=list(boss.abilities),
+            lore=boss.lore,
+        )
+
+
+class WorldSummaryResponse(BaseModel):
+    """
+    Outbound DTO for GET /worlds (list view).
+
+    Returns only the fields needed for a DM to choose a world.
+    Factions and bosses are excluded — see WorldDetailResponse for full data.
     """
 
-    world_name: str
-    world_description: str
-    atmosphere: str
+    world_id: uuid.UUID
+    name: str
     theme: Theme
-    rooms: list[NarratedRoomResponse]
-    main_quest: MainQuestResponse
-    active_factions: list[str]
+    description: str
 
     @classmethod
-    def from_domain(cls, world: GeneratedWorld) -> "GeneratedWorldResponse":
-        """Convert a GeneratedWorld aggregate into this response DTO."""
+    def from_domain(cls, world: World) -> "WorldSummaryResponse":
+        """Convert a World aggregate into a summary response DTO."""
         logger.debug(
-            "Converting GeneratedWorld to response DTO: name=%s rooms=%d",
-            world.world_name,
-            len(world.rooms),
+            "WorldSummaryResponse.from_domain: id=%s name='%s'", world.id, world.name
         )
         return cls(
-            world_name=world.world_name,
-            world_description=world.world_description,
-            atmosphere=world.atmosphere,
+            world_id=world.id,
+            name=world.name,
             theme=world.theme,
-            rooms=[NarratedRoomResponse.from_domain(r) for r in world.rooms],
-            main_quest=MainQuestResponse.from_domain(world.main_quest),
-            active_factions=list(world.active_factions),
+            description=world.description,
+        )
+
+
+class WorldDetailResponse(BaseModel):
+    """
+    Outbound DTO for GET /worlds/{world_id} (detail view).
+
+    Includes full faction and boss lists for DM review before campaign creation.
+    """
+
+    world_id: uuid.UUID
+    name: str
+    theme: Theme
+    description: str
+    lore_summary: str
+    factions: list[PresetFactionResponse]
+    bosses: list[PresetBossResponse]
+
+    @classmethod
+    def from_domain(cls, world: World) -> "WorldDetailResponse":
+        """Convert a World aggregate into a full detail response DTO."""
+        logger.debug(
+            "WorldDetailResponse.from_domain: id=%s name='%s'", world.id, world.name
+        )
+        return cls(
+            world_id=world.id,
+            name=world.name,
+            theme=world.theme,
+            description=world.description,
+            lore_summary=world.lore_summary,
+            factions=[PresetFactionResponse.from_domain(f) for f in world.factions],
+            bosses=[PresetBossResponse.from_domain(b) for b in world.bosses],
         )

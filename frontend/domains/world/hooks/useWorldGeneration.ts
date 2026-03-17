@@ -1,64 +1,46 @@
 "use client";
 
-import { useCallback } from "react";
-import { generateWorld } from "@/domains/world/services/world.service";
+import { useCallback, useState } from "react";
+import { getWorldById } from "@/domains/world/services/world.service";
 import { useWorldStore } from "@/domains/world/store/world.store";
-import { ApiError } from "@/lib/api/client";
-import type { WorldSettingsRequest } from "@/domains/world/types";
-
-// HTTP 429 from Gemini surfaces as a 400 with a recognisable message.
-// Treat any quota-related message distinctly so the UI can show actionable feedback.
-const QUOTA_PHRASES = ["quota", "rate limit", "resource exhausted"] as const;
-
-function isQuotaError(detail: string): boolean {
-  const lower = detail.toLowerCase();
-  return QUOTA_PHRASES.some((phrase) => lower.includes(phrase));
-}
 
 interface UseWorldGenerationResult {
-  readonly generate: (settings: WorldSettingsRequest, token: string) => Promise<void>;
-  readonly isGenerating: boolean;
+  readonly selectWorld: (worldId: string) => Promise<void>;
+  readonly isLoading: boolean;
   readonly error: string | null;
 }
 
 /**
- * Wraps generateWorld() and writes the result directly to the world store.
- * Distinguishes quota exhaustion errors from generic failures so the UI can
- * display an actionable message rather than a generic "try again" prompt.
- * @returns A generate callback, the current generating flag, and any error message.
+ * Loads the full detail of a world by ID and writes it to the world store.
+ * Replaces the old LLM generation hook — worlds are now admin-seeded and fetched by ID.
+ * @returns A selectWorld callback, a loading flag, and any error message.
  */
 export function useWorldGeneration(): UseWorldGenerationResult {
-  const { setGeneratedWorld, setGenerating, setError, isGenerating, error } =
-    useWorldStore();
+  const { setSelectedWorld, setLoading, setError } = useWorldStore();
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setLocalError] = useState<string | null>(null);
 
-  const generate = useCallback(
-    async (settings: WorldSettingsRequest, token: string): Promise<void> => {
-      setGenerating(true);
+  const selectWorld = useCallback(
+    async (worldId: string): Promise<void> => {
+      setIsLoading(true);
+      setLocalError(null);
+      setLoading(true);
       setError(null);
 
       try {
-        const world = await generateWorld(settings, token);
-        setGeneratedWorld(world);
-      } catch (err) {
-        if (err instanceof ApiError) {
-          if (isQuotaError(err.detail)) {
-            setError(
-              "The AI narrator is temporarily unavailable due to quota limits. Please wait a few minutes and try again."
-            );
-          } else if (err.status === 400) {
-            setError(`World generation failed: ${err.detail}`);
-          } else {
-            setError("World generation failed. Please try again.");
-          }
-        } else {
-          setError("World generation failed. Please try again.");
-        }
+        const world = await getWorldById(worldId);
+        setSelectedWorld(world);
+      } catch {
+        const msg = "Failed to load world details. Please try again.";
+        setLocalError(msg);
+        setError(msg);
       } finally {
-        setGenerating(false);
+        setIsLoading(false);
+        setLoading(false);
       }
     },
-    [setGeneratedWorld, setGenerating, setError]
+    [setSelectedWorld, setLoading, setError]
   );
 
-  return { generate, isGenerating, error };
+  return { selectWorld, isLoading, error };
 }

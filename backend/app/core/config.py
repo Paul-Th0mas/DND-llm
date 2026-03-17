@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     FRONTEND_URL: str = "http://localhost:3000"
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
-    # Required — GeminiNarrator is always used for world generation.
+    # Required — GeminiNarrator is used for world/dungeon generation.
     # Set this in .env. The app will refuse to start if it is missing.
     GEMINI_API_KEY: str
 

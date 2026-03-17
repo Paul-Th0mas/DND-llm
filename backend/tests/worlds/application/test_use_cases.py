@@ -1,128 +1,180 @@
 """
 Unit tests for the worlds application use cases.
 
-Uses StubNarrator directly — no mocking needed because StubNarrator is
-pure infrastructure with no side effects. The use case tests verify
-orchestration logic: DTO conversion, domain validation, and response shape.
+Uses an in-memory stub repository — no database required.
+Tests verify orchestration logic: repository calls, exception handling,
+and response shape.
 """
+
+import uuid
+from datetime import datetime, timezone
+from unittest.mock import MagicMock
 
 import pytest
 
-from app.worlds.application.schemas import GeneratedWorldResponse, WorldSettingsRequest
-from app.worlds.application.use_cases import GenerateWorldUseCase
-from app.worlds.domain.exceptions import InvalidWorldSettingsError
-from app.worlds.domain.models import Difficulty, QuestFocus, Theme
-from app.worlds.infrastructure.narrator import StubNarrator
+from app.worlds.application.schemas import WorldDetailResponse, WorldSummaryResponse
+from app.worlds.application.use_cases import GetWorldByIdUseCase, GetWorldsUseCase
+from app.worlds.domain.exceptions import WorldNotFoundError
+from app.worlds.domain.models import PresetBoss, PresetFaction, Theme, World
+from app.worlds.domain.repositories import WorldRepository
 
 
-def _make_use_case() -> GenerateWorldUseCase:
-    """Instantiate the use case with the stub narrator."""
-    return GenerateWorldUseCase(narrator=StubNarrator())
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
 
-def _make_request(
-    theme: Theme = Theme.CYBERPUNK,
-    difficulty: Difficulty = Difficulty.NORMAL,
-    room_count: int = 8,
-    quest_focus: QuestFocus = QuestFocus.HEIST,
-) -> WorldSettingsRequest:
-    """Build a default valid WorldSettingsRequest."""
-    return WorldSettingsRequest(
-        theme=theme,
-        difficulty=difficulty,
-        room_count=room_count,
-        quest_focus=quest_focus,
+def _make_world(world_id: uuid.UUID | None = None, is_active: bool = True) -> World:
+    """Build a minimal valid World aggregate for use in tests."""
+    return World(
+        id=world_id or uuid.uuid4(),
+        name="Test World",
+        theme=Theme.MEDIEVAL_FANTASY,
+        description="A world",
+        lore_summary="Some lore",
+        factions=(
+            PresetFaction(
+                name="Faction A",
+                description="desc",
+                alignment="neutral",
+                public_reputation="known",
+                hidden_agenda="secret",
+            ),
+        ),
+        bosses=(
+            PresetBoss(
+                name="Boss A",
+                description="desc",
+                challenge_rating="CR 10",
+                abilities=("Strike",),
+                lore="lore",
+            ),
+        ),
+        is_active=is_active,
+        created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
     )
 
 
-# ---------------------------------------------------------------------------
-# Happy path tests
-# ---------------------------------------------------------------------------
-
-
-def test_generate_world_returns_response() -> None:
-    """execute() returns a GeneratedWorldResponse for valid input."""
-    use_case = _make_use_case()
-    request = _make_request()
-
-    result = use_case.execute(request)
-
-    assert isinstance(result, GeneratedWorldResponse)
-
-
-def test_generate_world_cyberpunk_theme() -> None:
-    """The theme from the request propagates to the response."""
-    use_case = _make_use_case()
-    request = _make_request(theme=Theme.CYBERPUNK)
-
-    result = use_case.execute(request)
-
-    assert result.theme == Theme.CYBERPUNK
-
-
-def test_generate_world_medieval_theme() -> None:
-    """MEDIEVAL_FANTASY theme propagates to the response."""
-    use_case = _make_use_case()
-    request = _make_request(theme=Theme.MEDIEVAL_FANTASY, quest_focus=QuestFocus.RESCUE)
-
-    result = use_case.execute(request)
-
-    assert result.theme == Theme.MEDIEVAL_FANTASY
-
-
-def test_generate_world_room_count_matches_request() -> None:
-    """The number of rooms in the response matches the requested room_count."""
-    use_case = _make_use_case()
-    request = _make_request(room_count=11)
-
-    result = use_case.execute(request)
-
-    assert len(result.rooms) == 11
-
-
-def test_generate_world_response_has_main_quest() -> None:
-    """The response includes a non-empty main quest with stages."""
-    use_case = _make_use_case()
-    request = _make_request()
-
-    result = use_case.execute(request)
-
-    assert result.main_quest.name != ""
-    assert len(result.main_quest.stages) > 0
-
-
-def test_generate_world_response_has_factions() -> None:
-    """The response includes at least one active faction."""
-    use_case = _make_use_case()
-    request = _make_request()
-
-    result = use_case.execute(request)
-
-    assert len(result.active_factions) > 0
+def _stub_repo(worlds: list[World] | None = None) -> WorldRepository:
+    """Create a mock WorldRepository with controlled return values."""
+    repo = MagicMock(spec=WorldRepository)
+    repo.get_all_active.return_value = worlds or []
+    return repo
 
 
 # ---------------------------------------------------------------------------
-# Validation / error path tests
+# GetWorldsUseCase tests
 # ---------------------------------------------------------------------------
 
 
-def test_generate_world_invalid_settings_raises() -> None:
-    """execute() raises InvalidWorldSettingsError when domain validation fails.
+def test_get_worlds_returns_empty_list_when_no_worlds() -> None:
+    """execute() returns an empty list when the repository has no active worlds."""
+    repo = _stub_repo(worlds=[])
+    use_case = GetWorldsUseCase(repo=repo)
 
-    Note: Pydantic enforces ge=5, le=15 on the schema field. To test the
-    domain validate() path we must construct WorldSettings directly and
-    bypass Pydantic. The use case calls validate() after to_domain().
-    We test this by calling WorldSettings.validate() on an out-of-bounds value
-    constructed without going through the schema (e.g. room_count=3 directly).
-    """
-    from app.worlds.domain.models import WorldSettings
+    result = use_case.execute()
 
-    settings = WorldSettings(
-        theme=Theme.MANHWA,
-        difficulty=Difficulty.EASY,
-        room_count=3,
-        quest_focus=QuestFocus.MYSTERY,
-    )
+    assert result == []
 
-    with pytest.raises(InvalidWorldSettingsError):
-        settings.validate()
+
+def test_get_worlds_returns_summary_for_each_world() -> None:
+    """execute() returns one WorldSummaryResponse per active world."""
+    worlds = [_make_world(), _make_world()]
+    repo = _stub_repo(worlds=worlds)
+    use_case = GetWorldsUseCase(repo=repo)
+
+    result = use_case.execute()
+
+    assert len(result) == 2
+    assert all(isinstance(r, WorldSummaryResponse) for r in result)
+
+
+def test_get_worlds_summary_contains_correct_name() -> None:
+    """The returned summary has the correct world name."""
+    world = _make_world()
+    world.name = "Realm of Valdor"
+    repo = _stub_repo(worlds=[world])
+    use_case = GetWorldsUseCase(repo=repo)
+
+    result = use_case.execute()
+
+    assert result[0].name == "Realm of Valdor"
+
+
+def test_get_worlds_calls_repository_once() -> None:
+    """execute() calls get_all_active() exactly once."""
+    repo = _stub_repo()
+    use_case = GetWorldsUseCase(repo=repo)
+
+    use_case.execute()
+
+    repo.get_all_active.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# GetWorldByIdUseCase tests
+# ---------------------------------------------------------------------------
+
+
+def test_get_world_by_id_returns_detail_response() -> None:
+    """execute() returns a WorldDetailResponse for a valid world_id."""
+    world_id = uuid.uuid4()
+    world = _make_world(world_id=world_id)
+    repo = _stub_repo()
+    repo.get_by_id.return_value = world
+    use_case = GetWorldByIdUseCase(repo=repo)
+
+    result = use_case.execute(world_id)
+
+    assert isinstance(result, WorldDetailResponse)
+    assert result.world_id == world_id
+
+
+def test_get_world_by_id_raises_when_not_found() -> None:
+    """execute() raises WorldNotFoundError when the repository returns None."""
+    repo = _stub_repo()
+    repo.get_by_id.return_value = None
+    use_case = GetWorldByIdUseCase(repo=repo)
+
+    with pytest.raises(WorldNotFoundError):
+        use_case.execute(uuid.uuid4())
+
+
+def test_get_world_by_id_raises_when_inactive() -> None:
+    """execute() raises WorldNotFoundError when the world is inactive."""
+    world_id = uuid.uuid4()
+    world = _make_world(world_id=world_id, is_active=False)
+    repo = _stub_repo()
+    repo.get_by_id.return_value = world
+    use_case = GetWorldByIdUseCase(repo=repo)
+
+    with pytest.raises(WorldNotFoundError):
+        use_case.execute(world_id)
+
+
+def test_get_world_by_id_response_includes_factions() -> None:
+    """The detail response contains the world's factions."""
+    world_id = uuid.uuid4()
+    world = _make_world(world_id=world_id)
+    repo = _stub_repo()
+    repo.get_by_id.return_value = world
+    use_case = GetWorldByIdUseCase(repo=repo)
+
+    result = use_case.execute(world_id)
+
+    assert len(result.factions) == 1
+    assert result.factions[0].name == "Faction A"
+
+
+def test_get_world_by_id_response_includes_bosses() -> None:
+    """The detail response contains the world's bosses."""
+    world_id = uuid.uuid4()
+    world = _make_world(world_id=world_id)
+    repo = _stub_repo()
+    repo.get_by_id.return_value = world
+    use_case = GetWorldByIdUseCase(repo=repo)
+
+    result = use_case.execute(world_id)
+
+    assert len(result.bosses) == 1
+    assert result.bosses[0].name == "Boss A"

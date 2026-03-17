@@ -1,25 +1,22 @@
 """
 FastAPI router for the worlds bounded context.
 
-One endpoint:
-  POST /worlds/generate → GeneratedWorldResponse (200)
+Endpoints:
+  GET /worlds              → list[WorldSummaryResponse]  (200)
+  GET /worlds/{world_id}   → WorldDetailResponse         (200)
 
-Routers are thin: validate input via Pydantic, delegate to the use case,
+Routers are thin: validate path/query params, delegate to use cases,
 return the response. No business logic lives here.
 """
 
 import logging
+import uuid
 
 from fastapi import APIRouter, Depends
 
-from app.worlds.api.dependencies import get_generate_world_use_case
-from app.worlds.application.schemas import (
-    GeneratedWorldResponse,
-    WorldOptionsResponse,
-    WorldSettingsRequest,
-)
-from app.worlds.domain.models import Theme
-from app.worlds.application.use_cases import GenerateWorldUseCase
+from app.worlds.api.dependencies import get_world_by_id_use_case, get_worlds_use_case
+from app.worlds.application.schemas import WorldDetailResponse, WorldSummaryResponse
+from app.worlds.application.use_cases import GetWorldByIdUseCase, GetWorldsUseCase
 
 logger = logging.getLogger(__name__)
 
@@ -27,52 +24,47 @@ worlds_router = APIRouter()
 
 
 @worlds_router.get(
-    "/options",
-    response_model=WorldOptionsResponse,
-    summary="Get world generation options",
+    "",
+    response_model=list[WorldSummaryResponse],
+    summary="List available worlds",
     description=(
-        "Returns all valid enum values for theme, difficulty, quest focus, and room type, "
-        "plus the allowed room_count range. Use this to populate form dropdowns dynamically "
-        "instead of hardcoding values on the client."
+        "Returns all active worlds (id, name, theme, description). "
+        "Used to populate the world selection screen when a DM creates a campaign. "
+        "No authentication required."
     ),
 )
-def get_world_options(theme: Theme | None = None) -> WorldOptionsResponse:
+def list_worlds(
+    use_case: GetWorldsUseCase = Depends(get_worlds_use_case),
+) -> list[WorldSummaryResponse]:
     """
-    GET /worlds/options?theme=<Theme>
+    GET /worlds
 
-    No auth required — enum values are not sensitive.
-    The optional theme query param is forwarded to from_domain() for future
-    theme-specific filtering; currently all options are returned regardless.
-    FastAPI reads theme directly from the query string and validates it against
-    the Theme enum — an invalid value returns 422 automatically.
+    No auth required — world list is not sensitive. Domain exceptions
+    propagate to the global error handlers automatically.
     """
-    logger.info("GET /worlds/options: theme=%s", theme)
-    return WorldOptionsResponse.from_domain(theme=theme)
+    logger.info("GET /worlds")
+    return use_case.execute()
 
 
-@worlds_router.post(
-    "/generate",
-    response_model=GeneratedWorldResponse,
-    summary="Generate a new world",
+@worlds_router.get(
+    "/{world_id}",
+    response_model=WorldDetailResponse,
+    summary="Get world detail",
     description=(
-        "Accepts world settings from the DM and returns a fully generated dungeon world "
-        "including rooms, main quest, and active factions. "
-        "Currently uses the StubNarrator (template-based, no LLM)."
+        "Returns the full detail of a single world including factions and bosses. "
+        "Used on the world detail screen before a DM commits to creating a campaign. "
+        "Returns 404 if the world does not exist or is inactive."
     ),
 )
-def generate_world(
-    request: WorldSettingsRequest,
-    use_case: GenerateWorldUseCase = Depends(get_generate_world_use_case),
-) -> GeneratedWorldResponse:
+def get_world(
+    world_id: uuid.UUID,
+    use_case: GetWorldByIdUseCase = Depends(get_world_by_id_use_case),
+) -> WorldDetailResponse:
     """
-    POST /worlds/generate
+    GET /worlds/{world_id}
 
-    Delegates entirely to GenerateWorldUseCase. Domain exceptions propagate
-    to the global error handlers automatically — no HTTPException raising here.
+    No auth required. 404 is returned by the global handler when
+    WorldNotFoundError is raised by the use case.
     """
-    logger.info(
-        "POST /worlds/generate: theme=%s rooms=%d",
-        request.theme,
-        request.room_count,
-    )
-    return use_case.execute(request)
+    logger.info("GET /worlds/%s", world_id)
+    return use_case.execute(world_id)

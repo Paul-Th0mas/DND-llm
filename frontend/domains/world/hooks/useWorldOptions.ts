@@ -1,37 +1,38 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getWorldOptions } from "@/domains/world/services/world.service";
-import type { WorldOptionsResponse } from "@/domains/world/types";
+import { getWorlds } from "@/domains/world/services/world.service";
+import type { WorldSummary } from "@/domains/world/types";
 
 interface UseWorldOptionsResult {
-  readonly options: WorldOptionsResponse | null;
+  readonly worlds: readonly WorldSummary[];
   readonly isLoading: boolean;
   readonly error: string | null;
 }
 
 /**
- * Fetches and caches world generation options from GET /api/v1/worlds/options.
- * Options are fetched once on mount and held for the lifetime of the component.
- * @returns The options response, a loading flag, and an error string if the request failed.
+ * Fetches and caches the list of available worlds from GET /api/v1/worlds.
+ * Worlds are fetched once on mount and held for the lifetime of the component.
+ * Replaces the old getWorldOptions() hook — worlds are now admin-seeded, not generated.
+ * @returns The worlds array, a loading flag, and an error string if the request failed.
  */
 export function useWorldOptions(): UseWorldOptionsResult {
-  const [options, setOptions] = useState<WorldOptionsResponse | null>(null);
+  const [worlds, setWorlds] = useState<readonly WorldSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
-    async function fetch(): Promise<void> {
+    async function fetchWorlds(): Promise<void> {
       try {
-        const data = await getWorldOptions();
+        const data = await getWorlds();
         if (!cancelled) {
-          setOptions(data);
+          setWorlds(data);
         }
       } catch {
         if (!cancelled) {
-          setError("Failed to load world options. Please try again.");
+          setError("Failed to load worlds. Please try again.");
         }
       } finally {
         if (!cancelled) {
@@ -40,11 +41,11 @@ export function useWorldOptions(): UseWorldOptionsResult {
       }
     }
 
-    void fetch();
+    void fetchWorlds();
     return () => {
       cancelled = true;
     };
   }, []);
 
-  return { options, isLoading, error };
+  return { worlds, isLoading, error };
 }

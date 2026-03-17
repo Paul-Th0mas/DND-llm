@@ -1,4 +1,4 @@
-import { apiGet, apiPost } from "@/lib/api/client";
+import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api/client";
 import type { Room, RoomResponse } from "@/domains/room/types";
 
 /**
@@ -16,18 +16,41 @@ function authHeaders(token: string): HeadersInit {
  * @param name - The display name for the room.
  * @param maxPlayers - Maximum number of players allowed in the room.
  * @param token - The JWT access token of the authenticated DM.
+ * @param dungeonId - UUID of the dungeon session to link to this room.
+ * @param campaignId - UUID of the campaign to link to this room.
  * @returns A promise resolving to the created room and its room-scoped token.
  */
 export async function createRoom(
   name: string,
   maxPlayers: number,
-  token: string
+  token: string,
+  dungeonId: string | null = null,
+  campaignId: string | null = null
 ): Promise<RoomResponse> {
   return apiPost<RoomResponse>(
     "/api/v1/rooms/create",
-    { name, max_players: maxPlayers },
+    { name, max_players: maxPlayers, dungeon_id: dungeonId, campaign_id: campaignId },
     { headers: authHeaders(token) }
   );
+}
+
+/**
+ * Deletes (closes) a room by ID.
+ * Calls DELETE /api/v1/rooms/{roomId} — DM-role required.
+ * Returns 204 No Content on success; throws ApiError on failure.
+ * @param roomId - The UUID of the room to delete.
+ * @param token - The JWT access token of the authenticated DM.
+ * @returns A promise that resolves when the room is deleted.
+ */
+export async function deleteRoom(
+  roomId: string,
+  token: string
+): Promise<void> {
+  // The backend returns 204 with no body. apiDelete expects a typed response,
+  // so we use unknown and discard the value.
+  await apiDelete<unknown>(`/api/v1/rooms/${roomId}`, {
+    headers: authHeaders(token),
+  });
 }
 
 /**
@@ -44,6 +67,28 @@ export async function getRoomDetail(
   return apiGet<Room>(`/api/v1/rooms/${roomId}`, {
     headers: authHeaders(token),
   });
+}
+
+/**
+ * Links a dungeon and campaign to an existing room.
+ * Calls PATCH /api/v1/rooms/{roomId}/link — requires DM-role JWT.
+ * @param roomId - UUID of the room to update.
+ * @param dungeonId - UUID of the dungeon to link.
+ * @param campaignId - UUID of the campaign to link.
+ * @param token - JWT access token of the authenticated DM.
+ * @returns A promise resolving to the updated Room.
+ */
+export async function linkRoomDungeon(
+  roomId: string,
+  dungeonId: string,
+  campaignId: string,
+  token: string
+): Promise<Room> {
+  return apiPatch<Room>(
+    `/api/v1/rooms/${roomId}/link`,
+    { dungeon_id: dungeonId, campaign_id: campaignId },
+    { headers: authHeaders(token) }
+  );
 }
 
 /**

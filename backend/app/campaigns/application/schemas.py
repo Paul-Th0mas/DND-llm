@@ -6,11 +6,13 @@ between the API (HTTP) and the domain. They are NOT domain models.
 
 Inbound:  CreateCampaignRequest  → converted to Campaign domain aggregate
 Outbound: CampaignResponse       ← converted from Campaign domain aggregate
-          GenerateCampaignWorldResponse ← converted from CampaignWorld aggregate
+          CampaignDetailResponse ← full campaign detail
+          CampaignSummaryResponse ← list item
 """
 
 import logging
 import uuid
+from datetime import datetime
 
 from pydantic import BaseModel, Field
 
@@ -19,18 +21,10 @@ from app.campaigns.domain.models import (
     LEVEL_MIN,
     PLAYER_COUNT_MAX,
     PLAYER_COUNT_MIN,
-    SESSION_COUNT_MAX,
-    SESSION_COUNT_MIN,
     Campaign,
     CampaignTone,
     ContentBoundaries,
     LevelRange,
-    SettingPreference,
-)
-from app.campaigns.domain.world_models import (
-    AdventureHook,
-    CampaignWorld,
-    Settlement,
 )
 
 logger = logging.getLogger(__name__)
@@ -49,41 +43,39 @@ class LevelRangeRequest(BaseModel):
 
 
 class ContentBoundariesRequest(BaseModel):
-    """Inbound representation of campaign content boundaries (Lines & Veils)."""
+    """Inbound representation of campaign content boundaries (Lines only)."""
 
     lines: list[str] = Field(default_factory=list)
-    veils: list[str] = Field(default_factory=list)
 
 
 class CreateCampaignRequest(BaseModel):
     """
     Inbound DTO for POST /campaigns.
 
-    Captures all DM requirements for a new campaign. Pydantic enforces
-    field-level constraints; domain-level invariants (e.g. start <= end for
-    level_range) are enforced in the domain models after to_domain() is called.
+    world_id is required — DM must select a world before creating a campaign.
+    Pydantic enforces field-level constraints; domain-level invariants
+    (e.g. start <= end for level_range) are enforced in the domain models
+    after to_domain() is called.
     """
 
     campaign_name: str = Field(min_length=1, max_length=200)
+    world_id: uuid.UUID
     edition: str = Field(default="5e-2024", max_length=20)
     tone: CampaignTone
     player_count: int = Field(ge=PLAYER_COUNT_MIN, le=PLAYER_COUNT_MAX)
     level_range: LevelRangeRequest
-    session_count_estimate: int = Field(ge=SESSION_COUNT_MIN, le=SESSION_COUNT_MAX)
-    setting_preference: SettingPreference = SettingPreference.HOMEBREW
     themes: list[str] = Field(default_factory=list, max_length=10)
     content_boundaries: ContentBoundariesRequest = Field(
         default_factory=ContentBoundariesRequest
     )
-    homebrew_rules: list[str] = Field(default_factory=list, max_length=20)
-    inspirations: str | None = None
 
     def to_domain(self, dm_id: uuid.UUID) -> Campaign:
         """Convert this request DTO into a Campaign aggregate."""
         logger.debug(
-            "Converting CreateCampaignRequest to domain: name='%s' dm_id=%s",
+            "Converting CreateCampaignRequest to domain: name='%s' dm_id=%s world_id=%s",
             self.campaign_name,
             dm_id,
+            self.world_id,
         )
         level_range = LevelRange(
             start=self.level_range.start,
@@ -91,7 +83,6 @@ class CreateCampaignRequest(BaseModel):
         )
         boundaries = ContentBoundaries(
             lines=tuple(self.content_boundaries.lines),
-            veils=tuple(self.content_boundaries.veils),
         )
         return Campaign.create(
             name=self.campaign_name,
@@ -99,13 +90,10 @@ class CreateCampaignRequest(BaseModel):
             tone=self.tone,
             player_count=self.player_count,
             level_range=level_range,
-            session_count_estimate=self.session_count_estimate,
-            setting_preference=self.setting_preference,
             themes=tuple(self.themes),
             content_boundaries=boundaries,
-            homebrew_rules=tuple(self.homebrew_rules),
-            inspirations=self.inspirations,
             dm_id=dm_id,
+            world_id=self.world_id,
         )
 
 
@@ -118,8 +106,8 @@ class CampaignResponse(BaseModel):
     """
     Outbound DTO for POST /campaigns.
 
-    Returns the new campaign ID, its status, and the URL for the next step
-    (world generation), following the API design from the pipeline spec.
+    Returns the new campaign ID and the URL for the next step — dungeon
+    generation — following the pipeline design from the architecture spec.
     """
 
     campaign_id: uuid.UUID
@@ -131,80 +119,109 @@ class CampaignResponse(BaseModel):
         """Convert a Campaign aggregate into this response DTO."""
         return cls(
             campaign_id=campaign.id,
-            status="requirements_captured",
-            next_step=f"/api/v1/campaigns/{campaign.id}/world",
+            status="created",
+            next_step=f"/api/v1/campaigns/{campaign.id}/dungeons",
         )
 
 
-class SettlementResponse(BaseModel):
-    """Output DTO for the starting settlement within a campaign world."""
+class LevelRangeResponse(BaseModel):
+    """Outbound representation of a campaign level range."""
 
+    start: int
+    end: int
+
+
+class ContentBoundariesResponse(BaseModel):
+    """Outbound representation of campaign content boundaries."""
+
+    lines: list[str]
+
+
+class CampaignDetailResponse(BaseModel):
+    """
+    Full campaign detail for GET /campaigns/{id}.
+
+    Returns all stored fields so the frontend can display the campaign
+    requirements alongside the world it was built against.
+    """
+
+    campaign_id: uuid.UUID
     name: str
-    population: int
-    governance: str
-    description: str
-
-    @classmethod
-    def from_domain(cls, settlement: Settlement) -> "SettlementResponse":
-        """Convert a Settlement value object into this response DTO."""
-        return cls(
-            name=settlement.name,
-            population=settlement.population,
-            governance=settlement.governance,
-            description=settlement.description,
-        )
-
-
-class AdventureHookResponse(BaseModel):
-    """Output DTO for a single adventure hook."""
-
-    pillar: str
-    hook: str
-    connected_npc: str | None
-
-    @classmethod
-    def from_domain(cls, hook: AdventureHook) -> "AdventureHookResponse":
-        """Convert an AdventureHook value object into this response DTO."""
-        return cls(
-            pillar=hook.pillar,
-            hook=hook.hook,
-            connected_npc=hook.connected_npc,
-        )
-
-
-class GenerateCampaignWorldResponse(BaseModel):
-    """
-    Outbound DTO for POST /campaigns/{id}/world.
-
-    Returns a summary of the generated world. The full world data (NPCs,
-    factions, hidden agendas) is stored in the database and served via
-    separate endpoints in later pipeline steps.
-    """
-
+    edition: str
+    tone: str
+    player_count: int
+    level_range: LevelRangeResponse
+    themes: list[str]
+    content_boundaries: ContentBoundariesResponse
+    dm_id: uuid.UUID
     world_id: uuid.UUID
-    world_name: str
-    premise: str
-    starting_settlement: SettlementResponse
-    npcs_generated: int
-    factions_generated: int
-    hooks_generated: int
+    created_at: datetime
 
     @classmethod
-    def from_domain(cls, world: CampaignWorld) -> "GenerateCampaignWorldResponse":
-        """Convert a CampaignWorld aggregate into this response DTO."""
-        logger.debug(
-            "Converting CampaignWorld to response DTO: world_id=%s name=%s",
-            world.world_id,
-            world.world_name,
-        )
+    def from_domain(cls, campaign: Campaign) -> "CampaignDetailResponse":
+        """Convert a Campaign aggregate into this detailed response DTO."""
         return cls(
-            world_id=world.world_id,
-            world_name=world.world_name,
-            premise=world.premise,
-            starting_settlement=SettlementResponse.from_domain(
-                world.starting_settlement
+            campaign_id=campaign.id,
+            name=campaign.name,
+            edition=campaign.edition,
+            tone=campaign.tone.value,
+            player_count=campaign.player_count,
+            level_range=LevelRangeResponse(
+                start=campaign.level_range.start,
+                end=campaign.level_range.end,
             ),
-            npcs_generated=len(world.key_npcs),
-            factions_generated=len(world.factions),
-            hooks_generated=len(world.adventure_hooks),
+            themes=list(campaign.themes),
+            content_boundaries=ContentBoundariesResponse(
+                lines=list(campaign.content_boundaries.lines),
+            ),
+            dm_id=campaign.dm_id,
+            world_id=campaign.world_id,
+            created_at=campaign.created_at,
+        )
+
+
+class CampaignSummaryResponse(BaseModel):
+    """
+    Minimal campaign entry for GET /campaigns list.
+
+    Used in list responses where the full detail is not needed.
+    Extended (US-018) to embed world_name and dungeon_count so the campaign
+    hub can render cards without N+1 API calls from the frontend.
+    """
+
+    campaign_id: uuid.UUID
+    name: str
+    tone: str
+    player_count: int
+    world_id: uuid.UUID
+    # world_name is null when the linked world has been deleted by an admin.
+    world_name: str | None
+    # dungeon_count is 0 when no dungeons have been generated for this campaign.
+    dungeon_count: int
+    created_at: datetime
+
+    @classmethod
+    def from_domain(
+        cls,
+        campaign: Campaign,
+        *,
+        world_name: str | None,
+        dungeon_count: int,
+    ) -> "CampaignSummaryResponse":
+        """
+        Convert a Campaign aggregate into a summary DTO.
+
+        @param campaign      - The Campaign aggregate to convert.
+        @param world_name    - The name of the linked world, or None if deleted.
+        @param dungeon_count - Number of dungeons generated for this campaign.
+        """
+        return cls(
+            campaign_id=campaign.id,
+            name=campaign.name,
+            tone=campaign.tone.value,
+            player_count=campaign.player_count,
+            world_id=campaign.world_id,
+            world_name=world_name,
+            dungeon_count=dungeon_count,
+            created_at=campaign.created_at,
         )

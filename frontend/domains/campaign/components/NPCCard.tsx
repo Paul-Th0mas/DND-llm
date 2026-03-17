@@ -2,28 +2,22 @@
 
 import Box from "@mui/material/Box";
 import Chip from "@mui/material/Chip";
-import Collapse from "@mui/material/Collapse";
-import IconButton from "@mui/material/IconButton";
 import Typography from "@mui/material/Typography";
-import VisibilityIcon from "@mui/icons-material/Visibility";
-import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
-import { useState } from "react";
-import type { NpcResponse } from "@/domains/campaign/types";
+import type { CampaignNPC } from "@/domains/campaign/types";
 
 /** Props for the NPCCard component. */
-interface NPCCardProps {
-  readonly npc: NpcResponse;
-  /** When true the DM secret toggle is rendered. */
-  readonly showDmControls: boolean;
+export interface NPCCardProps {
+  /** The campaign NPC to display. */
+  readonly npc: CampaignNPC;
+  /** When true, the DM-only secret section is rendered. */
+  readonly isDM: boolean;
 }
 
 /**
- * Displays a single key NPC with species, role, personality, and stat block reference.
- * For the DM, a toggleable secret section reveals information hidden from players.
+ * Displays a single campaign NPC card with name, species, role, personality, and stat block reference.
+ * When isDM is true, also renders the NPC's secret in a styled DM-only section.
  */
-export function NPCCard({ npc, showDmControls }: NPCCardProps): React.ReactElement {
-  const [secretVisible, setSecretVisible] = useState(false);
-
+export function NPCCard({ npc, isDM }: NPCCardProps): React.ReactElement {
   return (
     <Box
       sx={{
@@ -37,55 +31,45 @@ export function NPCCard({ npc, showDmControls }: NPCCardProps): React.ReactEleme
         gap: 1,
       }}
     >
-      {/* Header row */}
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
-          <Typography variant="subtitle2" fontWeight={600}>
-            {npc.name}
-          </Typography>
-          <Chip label={npc.species} size="small" variant="outlined" />
-          <Chip label={npc.role} size="small" color="primary" />
-        </Box>
-        {showDmControls && (
-          <IconButton
-            size="small"
-            onClick={() => setSecretVisible((v) => !v)}
-            aria-label={secretVisible ? "Hide NPC secret" : "Reveal NPC secret"}
-          >
-            {secretVisible ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
-          </IconButton>
-        )}
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+        <Typography variant="subtitle2" fontWeight={600}>
+          {npc.name}
+        </Typography>
+        <Chip label={npc.species} size="small" variant="outlined" />
+        <Chip label={npc.role} size="small" color="primary" variant="outlined" />
       </Box>
 
       <Typography variant="body2" color="text.secondary">
         {npc.personality}
       </Typography>
 
-      {npc.stat_block_ref !== null && (
-        <Typography variant="caption" color="text.secondary">
+      {npc.stat_block_ref && (
+        <Typography variant="caption" color="text.disabled">
           Stat block: {npc.stat_block_ref}
         </Typography>
       )}
 
-      {showDmControls && (
-        <Collapse in={secretVisible}>
-          <Box
-            sx={{
-              mt: 1,
-              p: 1.5,
-              bgcolor: "warning.light",
-              borderRadius: 1,
-              opacity: 0.9,
-            }}
+      {isDM && (
+        <Box
+          sx={{
+            mt: 0.5,
+            p: 1.5,
+            borderRadius: 1,
+            // Uses parchment-700 as a muted dark background to signal DM-only content.
+            bgcolor: "#5c4230",
+            color: "#F9F8F6",
+          }}
+        >
+          <Typography
+            variant="caption"
+            sx={{ fontWeight: 700, display: "block", mb: 0.5, color: "#C9B59C" }}
           >
-            <Typography variant="caption" fontWeight={600} color="warning.dark">
-              DM only — Secret
-            </Typography>
-            <Typography variant="body2" color="text.primary" sx={{ mt: 0.5 }}>
-              {npc.secret}
-            </Typography>
-          </Box>
-        </Collapse>
+            DM Only — Secret
+          </Typography>
+          <Typography variant="body2" sx={{ color: "#EFE9E3" }}>
+            {npc.secret}
+          </Typography>
+        </Box>
       )}
     </Box>
   );

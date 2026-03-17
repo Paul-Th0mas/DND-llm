@@ -2,28 +2,22 @@
 
 import Box from "@mui/material/Box";
 import Chip from "@mui/material/Chip";
-import Collapse from "@mui/material/Collapse";
-import IconButton from "@mui/material/IconButton";
 import Typography from "@mui/material/Typography";
-import VisibilityIcon from "@mui/icons-material/Visibility";
-import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
-import { useState } from "react";
-import type { FactionResponse } from "@/domains/campaign/types";
+import type { CampaignFaction } from "@/domains/campaign/types";
 
 /** Props for the FactionCard component. */
-interface FactionCardProps {
-  readonly faction: FactionResponse;
-  /** When true the DM secret (hidden_agenda) toggle is rendered. */
-  readonly showDmControls: boolean;
+export interface FactionCardProps {
+  /** The campaign faction to display. */
+  readonly faction: CampaignFaction;
+  /** When true, the DM-only hidden agenda section is rendered. */
+  readonly isDM: boolean;
 }
 
 /**
- * Displays a single campaign faction with its goals, public reputation,
- * and (for the DM) a toggleable hidden agenda section.
+ * Displays a single campaign faction card with name, goals, and public reputation.
+ * When isDM is true, also renders the hidden agenda in a styled DM-only section.
  */
-export function FactionCard({ faction, showDmControls }: FactionCardProps): React.ReactElement {
-  const [agendaVisible, setAgendaVisible] = useState(false);
-
+export function FactionCard({ faction, isDM }: FactionCardProps): React.ReactElement {
   return (
     <Box
       sx={{
@@ -37,54 +31,42 @@ export function FactionCard({ faction, showDmControls }: FactionCardProps): Reac
         gap: 1,
       }}
     >
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <Typography variant="subtitle2" fontWeight={600}>
-          {faction.name}
-        </Typography>
-        {showDmControls && (
-          <IconButton
-            size="small"
-            onClick={() => setAgendaVisible((v) => !v)}
-            aria-label={agendaVisible ? "Hide hidden agenda" : "Reveal hidden agenda"}
-          >
-            {agendaVisible ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
-          </IconButton>
-        )}
-      </Box>
+      <Typography variant="subtitle2" fontWeight={600}>
+        {faction.name}
+      </Typography>
 
-      <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap" }}>
-        <Chip label="Goals" size="small" variant="outlined" />
-        <Typography variant="body2" color="text.secondary">
-          {faction.goals}
-        </Typography>
-      </Box>
-
-      <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap" }}>
-        <Chip label="Public reputation" size="small" variant="outlined" />
-        <Typography variant="body2" color="text.secondary">
+      <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", alignItems: "center" }}>
+        <Chip label="Faction" size="small" variant="outlined" />
+        <Typography variant="caption" color="text.secondary">
           {faction.public_reputation}
         </Typography>
       </Box>
 
-      {showDmControls && (
-        <Collapse in={agendaVisible}>
-          <Box
-            sx={{
-              mt: 1,
-              p: 1.5,
-              bgcolor: "warning.light",
-              borderRadius: 1,
-              opacity: 0.9,
-            }}
+      <Typography variant="body2" color="text.secondary">
+        {faction.goals}
+      </Typography>
+
+      {isDM && (
+        <Box
+          sx={{
+            mt: 0.5,
+            p: 1.5,
+            borderRadius: 1,
+            // Uses parchment-700 as a muted dark background to signal DM-only content.
+            bgcolor: "#5c4230",
+            color: "#F9F8F6",
+          }}
+        >
+          <Typography
+            variant="caption"
+            sx={{ fontWeight: 700, display: "block", mb: 0.5, color: "#C9B59C" }}
           >
-            <Typography variant="caption" fontWeight={600} color="warning.dark">
-              DM only — Hidden Agenda
-            </Typography>
-            <Typography variant="body2" color="text.primary" sx={{ mt: 0.5 }}>
-              {faction.hidden_agenda}
-            </Typography>
-          </Box>
-        </Collapse>
+            DM Only — Hidden Agenda
+          </Typography>
+          <Typography variant="body2" sx={{ color: "#EFE9E3" }}>
+            {faction.hidden_agenda}
+          </Typography>
+        </Box>
       )}
     </Box>
   );

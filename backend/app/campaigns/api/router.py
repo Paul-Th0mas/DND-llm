@@ -2,8 +2,9 @@
 FastAPI router for the campaigns bounded context.
 
 Endpoints:
-  POST /campaigns           → CampaignResponse (201)
-  POST /campaigns/{id}/world → GenerateCampaignWorldResponse (201)
+  POST /campaigns          → CampaignResponse        (201)
+  GET  /campaigns          → list[CampaignSummaryResponse] (200)
+  GET  /campaigns/{id}     → CampaignDetailResponse  (200)
 
 Routers are thin: validate input via Pydantic, delegate to use cases,
 return the response. No business logic lives here.
@@ -15,17 +16,20 @@ import uuid
 from fastapi import APIRouter, Depends
 
 from app.campaigns.api.dependencies import (
+    get_campaign_use_case,
     get_create_campaign_use_case,
-    get_generate_campaign_world_use_case,
+    get_list_campaigns_use_case,
 )
 from app.campaigns.application.schemas import (
+    CampaignDetailResponse,
     CampaignResponse,
+    CampaignSummaryResponse,
     CreateCampaignRequest,
-    GenerateCampaignWorldResponse,
 )
 from app.campaigns.application.use_cases import (
     CreateCampaignUseCase,
-    GenerateCampaignWorldUseCase,
+    GetCampaignUseCase,
+    ListCampaignsUseCase,
 )
 from app.rooms.api.dependencies import get_dm_user
 from app.users.domain.models import User
@@ -41,10 +45,9 @@ campaigns_router = APIRouter()
     status_code=201,
     summary="Create a new campaign",
     description=(
-        "Captures all DM requirements for a D&D 5e campaign: tone, themes, "
-        "content boundaries (Lines & Veils), level range, and house rules. "
-        "Returns the campaign ID and the URL for the next pipeline step. "
-        "Requires DM role."
+        "Creates a campaign against a selected world. The request must include a "
+        "world_id referencing an active admin-seeded world. Returns the campaign ID "
+        "and the URL for dungeon generation. Requires DM role."
     ),
 )
 def create_campaign(
@@ -59,37 +62,52 @@ def create_campaign(
     to the global error handlers automatically.
     """
     logger.info(
-        "POST /campaigns: name='%s' dm_id=%s",
+        "POST /campaigns: name='%s' dm_id=%s world_id=%s",
         request.campaign_name,
         current_user.id,
+        request.world_id,
     )
     return use_case.execute(request, current_user.id)
 
 
-@campaigns_router.post(
-    "/{campaign_id}/world",
-    response_model=GenerateCampaignWorldResponse,
-    status_code=201,
-    summary="Generate world for a campaign",
+@campaigns_router.get(
+    "",
+    response_model=list[CampaignSummaryResponse],
+    summary="List DM's campaigns",
+    description="Returns all campaigns owned by the authenticated DM, newest first.",
+)
+def list_campaigns(
+    current_user: User = Depends(get_dm_user),
+    use_case: ListCampaignsUseCase = Depends(get_list_campaigns_use_case),
+) -> list[CampaignSummaryResponse]:
+    """
+    GET /campaigns
+
+    Returns summaries of all campaigns for the current DM.
+    """
+    logger.info("GET /campaigns: dm_id=%s", current_user.id)
+    return use_case.execute(current_user.id)
+
+
+@campaigns_router.get(
+    "/{campaign_id}",
+    response_model=CampaignDetailResponse,
+    summary="Get campaign detail",
     description=(
-        "Generates a D&D 5e world (settlement, factions, NPCs, hooks) for the "
-        "given campaign using the narrator pipeline. Currently uses the stub "
-        "narrator (template-based, no LLM). Requires DM role and ownership of "
-        "the campaign."
+        "Returns full campaign detail including world reference, level range, "
+        "tone, content boundaries, and themes. Returns 404 if the campaign "
+        "does not exist or belongs to a different DM."
     ),
 )
-def generate_campaign_world(
+def get_campaign(
     campaign_id: uuid.UUID,
     current_user: User = Depends(get_dm_user),
-    use_case: GenerateCampaignWorldUseCase = Depends(
-        get_generate_campaign_world_use_case
-    ),
-) -> GenerateCampaignWorldResponse:
+    use_case: GetCampaignUseCase = Depends(get_campaign_use_case),
+) -> CampaignDetailResponse:
     """
-    POST /campaigns/{campaign_id}/world
+    GET /campaigns/{campaign_id}
 
-    Delegates to GenerateCampaignWorldUseCase. Returns 404 if the campaign
-    does not exist or belongs to a different DM.
+    Returns 404 if the campaign does not exist or is owned by another DM.
     """
-    logger.info("POST /campaigns/%s/world: dm_id=%s", campaign_id, current_user.id)
+    logger.info("GET /campaigns/%s: dm_id=%s", campaign_id, current_user.id)
     return use_case.execute(campaign_id, current_user.id)

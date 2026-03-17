@@ -13,5 +13,12 @@ def get_db() -> Generator[Session, None, None]:
     db = SessionLocal()
     try:
         yield db
+        # Commit the transaction after the endpoint returns successfully.
+        # Without this, flush() sends SQL to the DB but the transaction is
+        # rolled back when the session closes, so nothing ever persists.
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
     finally:
         db.close()

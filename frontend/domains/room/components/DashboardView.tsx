@@ -6,29 +6,25 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import Button from "@mui/material/Button";
 import AddIcon from "@mui/icons-material/Add";
-import MapIcon from "@mui/icons-material/Map";
+import FolderIcon from "@mui/icons-material/Folder";
 import MeetingRoomIcon from "@mui/icons-material/MeetingRoom";
 import { useAuthStore, selectUser } from "@/shared/store/auth.store";
 import { useAuth } from "@/domains/auth/hooks/useAuth";
-import { CreateWorldWizard } from "@/domains/world/components/CreateWorldWizard";
 import { CreateCampaignWizard } from "@/domains/campaign/components/CreateCampaignWizard";
-import { selectGeneratedWorld, useWorldStore } from "@/domains/world/store/world.store";
 import { CreateRoomDialog } from "./CreateRoomDialog";
 import { JoinRoomPanel } from "./JoinRoomPanel";
 
 /**
  * Main dashboard view rendered after authentication.
- * DMs see a card to create a new room; Players see a panel to join via invite code.
+ * DMs see buttons to create a campaign or open a room; Players see a panel to join via invite code.
  * The user's role determines which view is displayed.
  */
 export function DashboardView(): React.ReactElement {
   const user = useAuthStore(selectUser);
   const { logout } = useAuth();
   const router = useRouter();
-  const [worldWizardOpen, setWorldWizardOpen] = useState(false);
   const [campaignWizardOpen, setCampaignWizardOpen] = useState(false);
   const [createRoomOpen, setCreateRoomOpen] = useState(false);
-  const generatedWorld = useWorldStore(selectGeneratedWorld);
 
   if (!user) {
     // This state is transient — AuthProvider will redirect to /login.
@@ -120,57 +116,45 @@ export function DashboardView(): React.ReactElement {
           </Typography>
           <Typography variant="body1" color="text.secondary">
             {isDm
-              ? "Generate a world, then open a room for your players."
+              ? "Create a campaign and open a room for your players."
               : "Enter an invite code to join a game."}
           </Typography>
         </Box>
 
         {isDm ? (
-          <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
-            <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap", justifyContent: "center" }}>
-              <Button
-                variant="contained"
-                size="large"
-                startIcon={<AddIcon />}
-                onClick={() => setWorldWizardOpen(true)}
-                sx={{
-                  textTransform: "none",
-                  fontWeight: 600,
-                  fontSize: "1rem",
-                  borderRadius: 2.5,
-                  px: 4,
-                  py: 1.5,
-                }}
-              >
-                Generate World
-              </Button>
-              <Button
-                variant="outlined"
-                size="large"
-                startIcon={<AddIcon />}
-                onClick={() => setCampaignWizardOpen(true)}
-                sx={{
-                  textTransform: "none",
-                  fontWeight: 600,
-                  fontSize: "1rem",
-                  borderRadius: 2.5,
-                  px: 4,
-                  py: 1.5,
-                }}
-              >
-                Create Campaign
-              </Button>
-            </Box>
-            {generatedWorld !== null && (
-              <Button
-                variant="text"
-                startIcon={<MapIcon />}
-                onClick={() => router.push("/world")}
-                sx={{ textTransform: "none", color: "text.secondary" }}
-              >
-                View Generated World
-              </Button>
-            )}
+          <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap", justifyContent: "center" }}>
+            <Button
+              variant="outlined"
+              size="large"
+              startIcon={<FolderIcon />}
+              onClick={() => router.push("/campaign")}
+              sx={{
+                textTransform: "none",
+                fontWeight: 600,
+                fontSize: "1rem",
+                borderRadius: 2.5,
+                px: 4,
+                py: 1.5,
+              }}
+            >
+              My Campaigns
+            </Button>
+            <Button
+              variant="contained"
+              size="large"
+              startIcon={<AddIcon />}
+              onClick={() => setCampaignWizardOpen(true)}
+              sx={{
+                textTransform: "none",
+                fontWeight: 600,
+                fontSize: "1rem",
+                borderRadius: 2.5,
+                px: 4,
+                py: 1.5,
+              }}
+            >
+              Create Campaign
+            </Button>
           </Box>
         ) : (
           <Box sx={{ width: "100%", maxWidth: 400 }}>
@@ -190,14 +174,6 @@ export function DashboardView(): React.ReactElement {
           </Button>
         )}
       </Box>
-
-      {isDm && (
-        <CreateWorldWizard
-          open={worldWizardOpen}
-          onClose={() => setWorldWizardOpen(false)}
-          onProceedToCreateRoom={() => setCreateRoomOpen(true)}
-        />
-      )}
 
       {isDm && (
         <CreateCampaignWizard

@@ -122,6 +122,33 @@ export async function apiPut<T>(
 }
 
 /**
+ * Performs a typed PATCH request to the given API path.
+ * @param path - The API endpoint path relative to the base URL.
+ * @param body - The request body to be serialized as JSON.
+ * @param options - Optional fetch init overrides.
+ * @returns A promise resolving to the parsed JSON response typed as T.
+ * @throws An error if the response status is not ok.
+ */
+export async function apiPatch<T>(
+  path: string,
+  body: unknown,
+  options?: RequestInit
+): Promise<T> {
+  const response = await fetch(`${BASE_URL}${path}`, {
+    ...options,
+    method: "PATCH",
+    headers: { ...DEFAULT_HEADERS, ...options?.headers },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    await throwApiError(response);
+  }
+
+  return response.json() as Promise<T>;
+}
+
+/**
  * Performs a typed DELETE request to the given API path.
  * @param path - The API endpoint path relative to the base URL.
  * @param options - Optional fetch init overrides.

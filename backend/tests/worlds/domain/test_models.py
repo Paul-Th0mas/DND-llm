@@ -2,153 +2,137 @@
 Unit tests for the worlds domain models.
 
 Tests cover:
-  - WorldSettings construction and validation
-  - Immutability of frozen dataclasses
-  - GeneratedWorld structure assertions
-
-No infrastructure or framework imports — domain models are pure Python.
+  - World aggregate construction
+  - PresetFaction and PresetBoss immutability (frozen dataclasses)
+  - WorldNotFoundError is a domain exception
 """
 
-import pytest
+import uuid
 from dataclasses import FrozenInstanceError
+from datetime import datetime, timezone
 
-from app.worlds.domain.exceptions import InvalidWorldSettingsError
-from app.worlds.domain.models import (
-    Difficulty,
-    GeneratedWorld,
-    MainQuest,
-    NarratedRoom,
-    QuestFocus,
-    RoomType,
-    Theme,
-    WorldSettings,
-)
-from app.worlds.infrastructure.narrator import StubNarrator
+import pytest
+
+from app.worlds.domain.exceptions import WorldNotFoundError
+from app.worlds.domain.models import PresetBoss, PresetFaction, Theme, World
 
 
 # ---------------------------------------------------------------------------
-# WorldSettings tests
+# Helpers
 # ---------------------------------------------------------------------------
 
 
-def test_world_settings_valid() -> None:
-    """Valid settings construct a frozen dataclass without error."""
-    settings = WorldSettings(
-        theme=Theme.CYBERPUNK,
-        difficulty=Difficulty.NORMAL,
-        room_count=10,
-        quest_focus=QuestFocus.HEIST,
-    )
-
-    assert settings.room_count == 10
-    assert settings.theme == Theme.CYBERPUNK
-
-
-def test_world_settings_invalid_room_count_too_high() -> None:
-    """validate() raises InvalidWorldSettingsError when room_count exceeds 15."""
-    settings = WorldSettings(
-        theme=Theme.MEDIEVAL_FANTASY,
-        difficulty=Difficulty.HARD,
-        room_count=20,
-        quest_focus=QuestFocus.EXPLORATION,
-    )
-
-    with pytest.raises(InvalidWorldSettingsError):
-        settings.validate()
+def _make_faction(**kwargs: object) -> PresetFaction:
+    defaults: dict[str, object] = {
+        "name": "Test Faction",
+        "description": "A faction",
+        "alignment": "neutral",
+        "public_reputation": "Unknown",
+        "hidden_agenda": "Secret",
+    }
+    defaults.update(kwargs)
+    return PresetFaction(**defaults)  # type: ignore[arg-type]
 
 
-def test_world_settings_invalid_room_count_too_low() -> None:
-    """validate() raises InvalidWorldSettingsError when room_count is below 5."""
-    settings = WorldSettings(
-        theme=Theme.MANHWA,
-        difficulty=Difficulty.EASY,
-        room_count=2,
-        quest_focus=QuestFocus.RESCUE,
-    )
-
-    with pytest.raises(InvalidWorldSettingsError):
-        settings.validate()
-
-
-def test_world_settings_valid_does_not_raise() -> None:
-    """validate() on valid settings raises no exception."""
-    settings = WorldSettings(
-        theme=Theme.POST_APOCALYPTIC,
-        difficulty=Difficulty.NIGHTMARE,
-        room_count=5,
-        quest_focus=QuestFocus.ASSASSINATION,
-    )
-
-    # Should not raise
-    settings.validate()
+def _make_boss(**kwargs: object) -> PresetBoss:
+    defaults: dict[str, object] = {
+        "name": "Test Boss",
+        "description": "A boss",
+        "challenge_rating": "CR 10",
+        "abilities": ("Strike",),
+        "lore": "Some lore",
+    }
+    defaults.update(kwargs)
+    return PresetBoss(**defaults)  # type: ignore[arg-type]
 
 
-def test_world_settings_immutable() -> None:
-    """Assigning to a WorldSettings field raises FrozenInstanceError."""
-    settings = WorldSettings(
-        theme=Theme.CYBERPUNK,
-        difficulty=Difficulty.NORMAL,
-        room_count=8,
-        quest_focus=QuestFocus.MYSTERY,
-    )
+def _make_world(**kwargs: object) -> World:
+    defaults: dict[str, object] = {
+        "id": uuid.uuid4(),
+        "name": "Test World",
+        "theme": Theme.MEDIEVAL_FANTASY,
+        "description": "A test world",
+        "lore_summary": "Some lore",
+        "factions": (_make_faction(),),
+        "bosses": (_make_boss(),),
+        "is_active": True,
+        "created_at": datetime(2026, 1, 1, tzinfo=timezone.utc),
+    }
+    defaults.update(kwargs)
+    return World(**defaults)  # type: ignore[arg-type]
+
+
+# ---------------------------------------------------------------------------
+# World aggregate tests
+# ---------------------------------------------------------------------------
+
+
+def test_world_construction_succeeds() -> None:
+    """A World aggregate can be constructed with valid fields."""
+    world = _make_world()
+
+    assert world.name == "Test World"
+    assert world.theme == Theme.MEDIEVAL_FANTASY
+    assert world.is_active is True
+
+
+def test_world_stores_factions() -> None:
+    """Factions are stored and accessible on the aggregate."""
+    faction = _make_faction(name="Iron Crown")
+    world = _make_world(factions=(faction,))
+
+    assert len(world.factions) == 1
+    assert world.factions[0].name == "Iron Crown"
+
+
+def test_world_stores_bosses() -> None:
+    """Bosses are stored and accessible on the aggregate."""
+    boss = _make_boss(name="The Lich")
+    world = _make_world(bosses=(boss,))
+
+    assert len(world.bosses) == 1
+    assert world.bosses[0].name == "The Lich"
+
+
+def test_world_inactive_flag() -> None:
+    """A world with is_active=False is correctly represented."""
+    world = _make_world(is_active=False)
+
+    assert world.is_active is False
+
+
+# ---------------------------------------------------------------------------
+# PresetFaction immutability
+# ---------------------------------------------------------------------------
+
+
+def test_preset_faction_is_immutable() -> None:
+    """PresetFaction is a frozen dataclass — mutation raises FrozenInstanceError."""
+    faction = _make_faction()
 
     with pytest.raises(FrozenInstanceError):
-        settings.room_count = 12  # type: ignore[misc]
+        faction.name = "Changed"  # type: ignore[misc]
 
 
 # ---------------------------------------------------------------------------
-# GeneratedWorld structure tests (via StubNarrator)
+# PresetBoss immutability
 # ---------------------------------------------------------------------------
 
 
-def _make_settings(
-    room_count: int = 8, theme: Theme = Theme.CYBERPUNK
-) -> WorldSettings:
-    """Helper to build valid WorldSettings for structure tests."""
-    return WorldSettings(
-        theme=theme,
-        difficulty=Difficulty.NORMAL,
-        room_count=room_count,
-        quest_focus=QuestFocus.HEIST,
-    )
+def test_preset_boss_is_immutable() -> None:
+    """PresetBoss is a frozen dataclass — mutation raises FrozenInstanceError."""
+    boss = _make_boss()
+
+    with pytest.raises(FrozenInstanceError):
+        boss.name = "Changed"  # type: ignore[misc]
 
 
-def test_generated_world_has_correct_room_count() -> None:
-    """The number of rooms in GeneratedWorld matches the requested room_count."""
-    settings = _make_settings(room_count=9)
-    narrator = StubNarrator()
-
-    world = narrator.generate_world(settings)
-
-    assert len(world.rooms) == 9
+# ---------------------------------------------------------------------------
+# WorldNotFoundError
+# ---------------------------------------------------------------------------
 
 
-def test_generated_world_last_room_is_boss() -> None:
-    """The final room in GeneratedWorld always has RoomType.BOSS."""
-    settings = _make_settings(room_count=10)
-    narrator = StubNarrator()
-
-    world = narrator.generate_world(settings)
-
-    assert world.rooms[-1].room_type == RoomType.BOSS
-
-
-def test_generated_world_first_room_is_combat() -> None:
-    """The first room in GeneratedWorld always has RoomType.COMBAT."""
-    settings = _make_settings(room_count=7)
-    narrator = StubNarrator()
-
-    world = narrator.generate_world(settings)
-
-    assert world.rooms[0].room_type == RoomType.COMBAT
-
-
-def test_generated_world_rooms_are_indexed_sequentially() -> None:
-    """Each room's index field matches its position in the rooms tuple."""
-    settings = _make_settings(room_count=6)
-    narrator = StubNarrator()
-
-    world = narrator.generate_world(settings)
-
-    for expected_index, room in enumerate(world.rooms):
-        assert room.index == expected_index
+def test_world_not_found_error_is_raised() -> None:
+    """WorldNotFoundError can be raised and caught as expected."""
+    with pytest.raises(WorldNotFoundError):
+        raise WorldNotFoundError("World abc not found")

@@ -3,47 +3,54 @@
 import Box from "@mui/material/Box";
 import Chip from "@mui/material/Chip";
 import Typography from "@mui/material/Typography";
-import type { AdventureHookResponse } from "@/domains/campaign/types";
-
-// Display labels and colours for each narrative pillar.
-const PILLAR_META: Record<string, { label: string; color: "error" | "success" | "info" }> = {
-  COMBAT: { label: "Combat", color: "error" },
-  EXPLORATION: { label: "Exploration", color: "success" },
-  SOCIAL: { label: "Social", color: "info" },
-};
+import type { AdventureHook } from "@/domains/campaign/types";
 
 /** Props for the AdventureHookList component. */
-interface AdventureHookListProps {
-  readonly hooks: readonly AdventureHookResponse[];
+export interface AdventureHookListProps {
+  readonly hooks: readonly AdventureHook[];
 }
 
+/** Pillar display configuration — label and MUI chip color. */
+const PILLAR_CONFIG = {
+  combat: { label: "Combat", color: "error" },
+  exploration: { label: "Exploration", color: "success" },
+  social: { label: "Social", color: "info" },
+} as const;
+
+type PillarColor = "error" | "success" | "info";
+
 /**
- * Renders adventure hooks grouped by narrative pillar (Combat / Exploration / Social).
- * Each hook shows a pillar badge, the hook description, and an optional connected NPC.
+ * Renders adventure hooks grouped by narrative pillar (Combat, Exploration, Social).
+ * Each group has a labelled section header and lists the hooks with a connected NPC reference.
  */
 export function AdventureHookList({ hooks }: AdventureHookListProps): React.ReactElement {
-  // Group hooks by pillar while preserving insertion order within each group.
-  const pillars = ["COMBAT", "EXPLORATION", "SOCIAL"] as const;
-  const grouped = pillars
-    .map((pillar) => ({
-      pillar,
-      hooks: hooks.filter((h) => h.pillar === pillar),
-    }))
-    .filter((group) => group.hooks.length > 0);
-
-  // Also collect hooks with unknown pillars so nothing is silently dropped.
-  const knownPillars = new Set(pillars as readonly string[]);
-  const unknown = hooks.filter((h) => !knownPillars.has(h.pillar));
+  const pillars: Array<"combat" | "exploration" | "social"> = [
+    "combat",
+    "exploration",
+    "social",
+  ];
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
-      {grouped.map(({ pillar, hooks: pillarHooks }) => {
-        const meta = PILLAR_META[pillar] ?? { label: pillar, color: "info" as const };
+      {pillars.map((pillar) => {
+        const pillarHooks = hooks.filter((h) => h.pillar === pillar);
+        if (pillarHooks.length === 0) return null;
+
+        const config = PILLAR_CONFIG[pillar];
+
         return (
           <Box key={pillar}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
-              <Chip label={meta.label} size="small" color={meta.color} />
+            {/* Pillar label */}
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1.5 }}>
+              <Chip
+                label={config.label}
+                size="small"
+                color={config.color as PillarColor}
+                variant="outlined"
+              />
             </Box>
+
+            {/* Hooks in this pillar */}
             <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
               {pillarHooks.map((hook, i) => (
                 <Box
@@ -56,11 +63,9 @@ export function AdventureHookList({ hooks }: AdventureHookListProps): React.Reac
                     bgcolor: "background.paper",
                   }}
                 >
-                  <Typography variant="body2" color="text.primary">
-                    {hook.hook}
-                  </Typography>
-                  {hook.connected_npc !== null && (
-                    <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
+                  <Typography variant="body2">{hook.hook}</Typography>
+                  {hook.connected_npc && (
+                    <Typography variant="caption" color="text.disabled" sx={{ mt: 0.5, display: "block" }}>
                       Connected NPC: {hook.connected_npc}
                     </Typography>
                   )}
@@ -70,29 +75,6 @@ export function AdventureHookList({ hooks }: AdventureHookListProps): React.Reac
           </Box>
         );
       })}
-
-      {unknown.length > 0 && (
-        <Box>
-          <Typography variant="caption" color="text.secondary" sx={{ mb: 1 }}>
-            Other hooks
-          </Typography>
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-            {unknown.map((hook, i) => (
-              <Box
-                key={i}
-                sx={{
-                  p: 1.5,
-                  border: "1px solid",
-                  borderColor: "divider",
-                  borderRadius: 1,
-                }}
-              >
-                <Typography variant="body2">{hook.hook}</Typography>
-              </Box>
-            ))}
-          </Box>
-        </Box>
-      )}
     </Box>
   );
 }
