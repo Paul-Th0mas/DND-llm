@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import Box from "@mui/material/Box";
+import Divider from "@mui/material/Divider";
 import Typography from "@mui/material/Typography";
 import Alert from "@mui/material/Alert";
 import Chip from "@mui/material/Chip";
@@ -109,6 +110,107 @@ function EventItem({ event, players }: EventItemProps): React.ReactElement {
         <Alert severity="error" sx={{ py: 0.25, fontSize: "0.8rem" }}>
           {event.detail}
         </Alert>
+      );
+
+    /**
+     * Renders the dungeon introduction card emitted by the server when the DM
+     * starts a session. Displays the dungeon name, premise, quest details,
+     * room list, and world/campaign context as a structured system message.
+     * No avatar or role chip is shown — this is a server-generated narrative event.
+     */
+    case "dungeon_intro":
+      return (
+        <Box
+          sx={{
+            bgcolor: "#EFE9E3",
+            borderLeft: "4px solid #5c4230",
+            borderRadius: "0 8px 8px 0",
+            p: 2,
+            display: "flex",
+            flexDirection: "column",
+            gap: 1,
+          }}
+        >
+          {/* Dungeon name heading */}
+          <Typography variant="h6" sx={{ color: "#1e1410", fontWeight: 700 }}>
+            {event.dungeon_name}
+          </Typography>
+
+          <Divider />
+
+          {/* Premise */}
+          <Typography
+            variant="body2"
+            sx={{ fontStyle: "italic", color: "#3a2820" }}
+          >
+            {event.premise}
+          </Typography>
+
+          {/* Quest block */}
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+            <Typography
+              variant="subtitle2"
+              sx={{ color: "#5c4230", fontWeight: 700 }}
+            >
+              {event.quest.name}
+            </Typography>
+            <Typography variant="body2">{event.quest.description}</Typography>
+            {event.quest.stages.length > 0 && (
+              <ol style={{ paddingLeft: "1.25rem", margin: 0 }}>
+                {event.quest.stages.map((stage, i) => (
+                  <li key={i}>
+                    <Typography variant="body2">{stage}</Typography>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </Box>
+
+          {/* Rooms section */}
+          {event.rooms.length > 0 && (
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+              <Typography
+                variant="subtitle2"
+                sx={{ color: "#5c4230", fontWeight: 700 }}
+              >
+                Rooms
+              </Typography>
+              {event.rooms.map((room, i) => (
+                <Box
+                  key={i}
+                  sx={{ display: "flex", flexDirection: "column", gap: 0.25 }}
+                >
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    {room.name}
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: "#5c4230" }}>
+                    {room.description}
+                  </Typography>
+                </Box>
+              ))}
+            </Box>
+          )}
+
+          <Divider />
+
+          {/* World footer */}
+          <Typography
+            variant="caption"
+            sx={{ color: "#7d5e45", fontStyle: "italic" }}
+          >
+            {`World: ${event.world.name} — ${event.world.lore_summary} (${event.world.theme})`}
+          </Typography>
+
+          {/* Campaign footer */}
+          <Typography
+            variant="caption"
+            sx={{ color: "#7d5e45", fontStyle: "italic" }}
+          >
+            {`Campaign: ${event.campaign.name} · ${event.campaign.tone}`}
+            {event.campaign.themes.length > 0 &&
+              ` · ${event.campaign.themes.join(", ")}`}
+          </Typography>
+        </Box>
       );
 
     default:

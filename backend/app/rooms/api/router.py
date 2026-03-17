@@ -12,8 +12,12 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.db.session import get_db
+from app.campaigns.infrastructure.repositories import SqlAlchemyCampaignRepository
+from app.dungeons.infrastructure.repositories import SQLAlchemyDungeonRepository
 from app.rooms.api.dependencies import (
+    get_campaign_repository,
     get_dm_user,
+    get_dungeon_repository,
     get_room_player_repository,
     get_room_repository,
 )
@@ -21,9 +25,16 @@ from app.rooms.application.schemas import (
     CreateRoomRequest,
     CreateRoomResponse,
     JoinRoomResponse,
+    LinkRoomDungeonRequest,
     RoomResponse,
 )
-from app.rooms.application.use_cases import CreateRoom, DeleteRoom, GetRoom, JoinRoom
+from app.rooms.application.use_cases import (
+    CreateRoom,
+    DeleteRoom,
+    GetRoom,
+    JoinRoom,
+    LinkRoomDungeon,
+)
 from app.rooms.infrastructure.repositories import (
     SqlAlchemyRoomPlayerRepository,
     SqlAlchemyRoomRepository,
@@ -55,6 +66,8 @@ def _room_response(room_domain: object, player_ids: list[uuid.UUID]) -> RoomResp
         is_active=room_domain.is_active,
         created_at=room_domain.created_at,
         player_ids=player_ids,
+        dungeon_id=room_domain.dungeon_id,
+        campaign_id=room_domain.campaign_id,
     )
 
 
@@ -77,7 +90,13 @@ def create_room(
     """
     logger.info("create_room: dm_id=%s name='%s'", dm.id, body.name)
     use_case = CreateRoom(room_repo=room_repo, player_repo=player_repo)
-    room = use_case.execute(name=body.name, dm_id=dm.id, max_players=body.max_players)
+    room = use_case.execute(
+        name=body.name,
+        dm_id=dm.id,
+        max_players=body.max_players,
+        dungeon_id=body.dungeon_id,
+        campaign_id=body.campaign_id,
+    )
     db.commit()
 
     room_token = create_room_token(
@@ -153,3 +172,44 @@ def delete_room(
     use_case = DeleteRoom(room_repo=room_repo)
     use_case.execute(room_id=room_id, requesting_user_id=dm.id)
     db.commit()
+
+
+@rooms_router.patch("/{room_id}/link", response_model=RoomResponse)
+def link_room_dungeon(
+    room_id: uuid.UUID,
+    body: LinkRoomDungeonRequest,
+    db: Session = Depends(get_db),
+    dm: User = Depends(get_dm_user),
+    room_repo: SqlAlchemyRoomRepository = Depends(get_room_repository),
+    dungeon_repo: SQLAlchemyDungeonRepository = Depends(get_dungeon_repository),
+    campaign_repo: SqlAlchemyCampaignRepository = Depends(get_campaign_repository),
+    player_repo: SqlAlchemyRoomPlayerRepository = Depends(get_room_player_repository),
+) -> RoomResponse:
+    """
+    DM links a dungeon and its campaign to an existing room.
+    Only the DM who created the room may call this.
+    Returns the updated room (200).
+    """
+    logger.info(
+        "link_room_dungeon: room_id=%s dungeon_id=%s campaign_id=%s dm_id=%s",
+        room_id,
+        body.dungeon_id,
+        body.campaign_id,
+        dm.id,
+    )
+    use_case = LinkRoomDungeon(
+        room_repo=room_repo,
+        dungeon_repo=dungeon_repo,
+        campaign_repo=campaign_repo,
+    )
+    updated_room = use_case.execute(
+        room_id=room_id,
+        dungeon_id=body.dungeon_id,
+        campaign_id=body.campaign_id,
+        requesting_user_id=dm.id,
+    )
+    db.commit()
+    # Fetch the current player list so the response is complete.
+    players = player_repo.get_by_room(updated_room.id)
+    player_ids = [p.user_id for p in players]
+    return _room_response(updated_room, player_ids)

@@ -3,14 +3,16 @@ import logging
 from fastapi import Depends
 from sqlalchemy.orm import Session
 
+from app.campaigns.infrastructure.repositories import SqlAlchemyCampaignRepository
 from app.db.session import get_db
+from app.dungeons.infrastructure.repositories import SQLAlchemyDungeonRepository
+from app.rooms.domain.repositories import NotDMError
 from app.rooms.infrastructure.repositories import (
     SqlAlchemyRoomPlayerRepository,
     SqlAlchemyRoomRepository,
 )
 from app.users.api.dependencies import get_current_user
 from app.users.domain.models import User
-from app.rooms.domain.repositories import NotDMError
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +27,18 @@ def get_room_player_repository(
     db: Session = Depends(get_db),
 ) -> SqlAlchemyRoomPlayerRepository:
     return SqlAlchemyRoomPlayerRepository(session=db)
+
+
+def get_dungeon_repository(
+    db: Session = Depends(get_db),
+) -> SQLAlchemyDungeonRepository:
+    return SQLAlchemyDungeonRepository(session=db)
+
+
+def get_campaign_repository(
+    db: Session = Depends(get_db),
+) -> SqlAlchemyCampaignRepository:
+    return SqlAlchemyCampaignRepository(session=db)
 
 
 def get_dm_user(current_user: User = Depends(get_current_user)) -> User:

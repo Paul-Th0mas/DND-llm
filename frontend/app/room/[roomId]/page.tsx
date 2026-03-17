@@ -12,6 +12,7 @@ import { PlayerSidebar } from "@/domains/room/components/PlayerSidebar";
 import { EventFeed } from "@/domains/room/components/EventFeed";
 import { DiceRoller } from "@/domains/room/components/DiceRoller";
 import { ChatInput } from "@/domains/room/components/ChatInput";
+import { RoomDungeonPanel } from "@/domains/room/components/RoomDungeonPanel";
 
 /**
  * Game room page — the primary multiplayer interface.
@@ -25,8 +26,12 @@ export default function RoomPage(): React.ReactElement {
   const router = useRouter();
 
   const user = useAuthStore(selectUser);
+  const token = useAuthStore((s) => s.token);
   const roomToken = useRoomStore((s) => s.roomToken);
+  const room = useRoomStore((s) => s.room);
   const clearRoom = useRoomStore((s) => s.clearRoom);
+  // The user is considered the DM when they have the dm role and own this room.
+  const isDm = user?.role === "dm" && room?.dm_id === user?.id;
 
   // Retrieve the room token: store first, then localStorage fallback.
   const effectiveRoomToken =
@@ -93,14 +98,14 @@ export default function RoomPage(): React.ReactElement {
       }}
     >
       {/* Top bar — full width */}
-      <RoomTopBar onLeave={handleLeave} />
+      <RoomTopBar onLeave={handleLeave} send={send} />
 
-      {/* Body — sidebar + main content */}
+      {/* Body — sidebar + main content + optional dungeon panel */}
       <Box sx={{ flex: 1, display: "flex", overflow: "hidden" }}>
         {/* Left: player list */}
         <PlayerSidebar />
 
-        {/* Right: feed + input stack */}
+        {/* Centre: feed + input stack */}
         <Box
           sx={{
             flex: 1,
@@ -118,6 +123,14 @@ export default function RoomPage(): React.ReactElement {
           {/* Chat input row */}
           <ChatInput send={send} />
         </Box>
+
+        {/* Right: dungeon panel — renders nothing for players when no dungeon is linked */}
+        <RoomDungeonPanel
+          dungeonId={room?.dungeon_id ?? null}
+          token={token ?? ""}
+          roomId={roomId}
+          isDm={isDm ?? false}
+        />
       </Box>
     </Box>
   );

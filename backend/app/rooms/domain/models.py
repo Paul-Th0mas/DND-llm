@@ -89,6 +89,12 @@ class Room:
     max_players: int
     is_active: bool
     created_at: datetime
+    # Optional link to a generated Dungeon. Set at creation; None for rooms
+    # created without a dungeon (quick play, testing).
+    dungeon_id: uuid.UUID | None = None
+    # Optional link to a Campaign. Set when the DM links the room to a
+    # campaign for narrative context (world lore, tone, themes).
+    campaign_id: uuid.UUID | None = None
 
     @classmethod
     def create(
@@ -96,6 +102,8 @@ class Room:
         name: str,
         dm_id: uuid.UUID,
         max_players: int,
+        dungeon_id: uuid.UUID | None = None,
+        campaign_id: uuid.UUID | None = None,
     ) -> tuple["Room", RoomCreated]:
         """
         Factory method — creates a new Room and returns it with its domain event.
@@ -115,6 +123,8 @@ class Room:
             max_players=max_players,
             is_active=True,
             created_at=now,
+            dungeon_id=dungeon_id,
+            campaign_id=campaign_id,
         )
         logger.info("Room.create: room id=%s name='%s' dm_id=%s", room_id, name, dm_id)
         event = RoomCreated(room_id=room_id, dm_id=dm_id, occurred_at=now)

@@ -23,6 +23,22 @@ class RoomORM(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False
     )
+    # Optional FK to a generated Dungeon. NULL for quick-play rooms created
+    # without going through the dungeon generation pipeline.
+    dungeon_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey("dungeons.id", ondelete="SET NULL"),
+        nullable=True,
+        default=None,
+    )
+    # Optional FK to a Campaign. No FK constraint — the campaigns table may
+    # not be present in all deployment environments. Matches the dungeon_id
+    # pattern: NULL until the DM links the room to a campaign.
+    campaign_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid,
+        nullable=True,
+        default=None,
+    )
 
 
 class RoomPlayerORM(Base):
