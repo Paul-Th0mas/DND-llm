@@ -13,6 +13,7 @@ Supported incoming event types:
   - dice_roll         { "type": "dice_roll", "sides": 20 }
   - dm_announcement   { "type": "dm_announcement", "content": "..." }  (DM only)
   - chat_message      { "type": "chat_message", "content": "..." }
+  - start_session     { "type": "start_session" }  (DM only)
 
 All outgoing messages are JSON objects with at least a "type" field.
 """
@@ -24,8 +25,13 @@ import uuid
 
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect, status
 
+from app.campaigns.infrastructure.repositories import SqlAlchemyCampaignRepository
 from app.core.exceptions import AuthenticationError
+from app.db.session import SessionLocal
+from app.dungeons.infrastructure.repositories import SQLAlchemyDungeonRepository
+from app.rooms.infrastructure.repositories import SqlAlchemyRoomRepository
 from app.users.infrastructure.auth import decode_access_token
+from app.worlds.infrastructure.repositories import SQLAlchemyWorldRepository
 
 logger = logging.getLogger(__name__)
 
@@ -106,6 +112,151 @@ class ConnectionManager:
 
 # Module-level singleton — shared across all requests in this process.
 connection_manager = ConnectionManager()
+
+
+# ---------------------------------------------------------------------------
+# Start session handler
+# ---------------------------------------------------------------------------
+
+
+async def _handle_start_session(
+    websocket: WebSocket,
+    room_id: uuid.UUID,
+    room_id_str: str,
+    manager: ConnectionManager,
+) -> None:
+    """
+    Load the room's linked dungeon, campaign, and world then broadcast the
+    dungeon_intro payload to all connections in the room.
+
+    Uses a short-lived DB session scoped to this operation — WebSocket
+    endpoints cannot use FastAPI's Depends(), so SessionLocal is called
+    directly here. The session is closed in the finally block to avoid leaks.
+
+    @param websocket   - The DM's WebSocket, used to send error events.
+    @param room_id     - UUID of the room being started.
+    @param room_id_str - String form of room_id used as the ConnectionManager key.
+    @param manager     - The module-level ConnectionManager singleton.
+    """
+    db = SessionLocal()
+    try:
+        room_repo = SqlAlchemyRoomRepository(db)
+        dungeon_repo = SQLAlchemyDungeonRepository(db)
+        campaign_repo = SqlAlchemyCampaignRepository(db)
+        world_repo = SQLAlchemyWorldRepository(db)
+
+        room = room_repo.get_by_id(room_id)
+        if room is None or room.dungeon_id is None:
+            logger.warning(
+                "_handle_start_session: room %s has no dungeon_id", room_id_str
+            )
+            await manager.send_to(
+                websocket,
+                {
+                    "type": "error",
+                    "detail": "Room has no dungeon linked. Assign a dungeon before starting.",
+                },
+            )
+            return
+
+        # Campaign is required to supply narrative context (world lore, tone,
+        # themes) to the dungeon_intro broadcast.
+        if room.campaign_id is None:
+            logger.warning(
+                "_handle_start_session: room %s has no campaign_id", room_id_str
+            )
+            await manager.send_to(
+                websocket,
+                {"type": "error", "message": "Room has no campaign linked."},
+            )
+            return
+
+        dungeon = dungeon_repo.get_by_id(room.dungeon_id)
+        if dungeon is None:
+            logger.warning(
+                "_handle_start_session: dungeon %s not found for room %s",
+                room.dungeon_id,
+                room_id_str,
+            )
+            await manager.send_to(
+                websocket,
+                {
+                    "type": "error",
+                    "detail": f"Dungeon {room.dungeon_id} not found.",
+                },
+            )
+            return
+
+        campaign = campaign_repo.get_by_id(room.campaign_id)
+        if campaign is None:
+            logger.warning(
+                "_handle_start_session: campaign %s not found for room %s",
+                room.campaign_id,
+                room_id_str,
+            )
+            await manager.send_to(
+                websocket,
+                {
+                    "type": "error",
+                    "message": f"Campaign {room.campaign_id} not found.",
+                },
+            )
+            return
+
+        world = world_repo.get_by_id(campaign.world_id)
+        if world is None:
+            logger.warning(
+                "_handle_start_session: world %s not found for campaign %s room %s",
+                campaign.world_id,
+                campaign.id,
+                room_id_str,
+            )
+            await manager.send_to(
+                websocket,
+                {
+                    "type": "error",
+                    "message": f"World {campaign.world_id} not found.",
+                },
+            )
+            return
+
+        logger.info(
+            "_handle_start_session: broadcasting dungeon_intro for "
+            "room=%s dungeon=%s campaign=%s world=%s",
+            room_id_str,
+            dungeon.id,
+            campaign.id,
+            world.id,
+        )
+        await manager.broadcast(
+            room_id_str,
+            {
+                "type": "dungeon_intro",
+                "dungeon_name": dungeon.name,
+                "premise": dungeon.premise,
+                "quest": {
+                    "name": dungeon.quest.name,
+                    "description": dungeon.quest.description,
+                    "stages": list(dungeon.quest.stages),
+                },
+                "rooms": [
+                    {"name": r.name, "description": r.description}
+                    for r in dungeon.rooms
+                ],
+                "world": {
+                    "name": world.name,
+                    "lore_summary": world.lore_summary,
+                    "theme": world.theme.value,
+                },
+                "campaign": {
+                    "name": campaign.name,
+                    "tone": campaign.tone.value,
+                    "themes": list(campaign.themes),
+                },
+            },
+        )
+    finally:
+        db.close()
 
 
 # ---------------------------------------------------------------------------
@@ -229,6 +380,21 @@ async def websocket_endpoint(
                         "content": content,
                     },
                 )
+
+            elif event_type == "start_session":
+                # Only the DM may start a session.
+                if role != "dm":
+                    await connection_manager.send_to(
+                        websocket,
+                        {
+                            "type": "error",
+                            "detail": "Only the DM can start a session",
+                        },
+                    )
+                else:
+                    await _handle_start_session(
+                        websocket, room_id, room_id_str, connection_manager
+                    )
 
             else:
                 await connection_manager.send_to(

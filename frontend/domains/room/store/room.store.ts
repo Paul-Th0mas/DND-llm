@@ -61,6 +61,9 @@ export const useRoomStore = create<RoomStore>()(
       setConnected: (isConnected: boolean) =>
         set({ isConnected }, false, "room/setConnected"),
 
+      updateRoom: (room: Room) =>
+        set({ room }, false, "room/updateRoom"),
+
       clearRoom: () =>
         set(
           {

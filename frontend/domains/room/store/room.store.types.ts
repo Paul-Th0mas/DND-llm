@@ -46,6 +46,12 @@ export interface RoomActions {
    * @param connected - True when the socket is open.
    */
   setConnected: (connected: boolean) => void;
+  /**
+   * Replaces the stored room object with an updated version.
+   * Used after PATCH operations such as linking a dungeon.
+   * @param room - The updated room returned by the API.
+   */
+  updateRoom: (room: Room) => void;
   /** Clears all room state when the user leaves or disconnects. */
   clearRoom: () => void;
 }

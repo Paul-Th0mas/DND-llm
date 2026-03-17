@@ -10,6 +10,9 @@ import logging
 import uuid
 from datetime import datetime, timezone
 
+from app.campaigns.domain.repositories import CampaignRepository
+from app.core.exceptions import AuthenticationError, NotFoundError
+from app.dungeons.domain.repositories import DungeonRepository
 from app.rooms.domain.models import Room, RoomPlayer
 from app.rooms.domain.repositories import (
     AlreadyInRoomError,
@@ -37,11 +40,29 @@ class CreateRoom:
         self._room_repo = room_repo
         self._player_repo = player_repo
 
-    def execute(self, name: str, dm_id: uuid.UUID, max_players: int) -> Room:
+    def execute(
+        self,
+        name: str,
+        dm_id: uuid.UUID,
+        max_players: int,
+        dungeon_id: uuid.UUID | None = None,
+        campaign_id: uuid.UUID | None = None,
+    ) -> Room:
         logger.debug(
-            "CreateRoom: name='%s' dm_id=%s max_players=%d", name, dm_id, max_players
+            "CreateRoom: name='%s' dm_id=%s max_players=%d dungeon_id=%s campaign_id=%s",
+            name,
+            dm_id,
+            max_players,
+            dungeon_id,
+            campaign_id,
         )
-        room, _ = Room.create(name=name, dm_id=dm_id, max_players=max_players)
+        room, _ = Room.create(
+            name=name,
+            dm_id=dm_id,
+            max_players=max_players,
+            dungeon_id=dungeon_id,
+            campaign_id=campaign_id,
+        )
         self._room_repo.save(room)
         # DM is the first room member.
         dm_entry = RoomPlayer(
@@ -145,3 +166,69 @@ class DeleteRoom:
         logger.info(
             "DeleteRoom: room id=%s deleted by dm_id=%s", room_id, requesting_user_id
         )
+
+
+class LinkRoomDungeon:
+    """
+    DM links a dungeon (and its campaign) to an existing room.
+
+    This lets the room carry narrative context (world lore, tone, quest) from
+    the campaign/dungeon without re-creating the room. Only the room's own DM
+    may call this; any other authenticated DM gets an AuthenticationError.
+    """
+
+    def __init__(
+        self,
+        room_repo: RoomRepository,
+        dungeon_repo: DungeonRepository,
+        campaign_repo: CampaignRepository,
+    ) -> None:
+        self._room_repo = room_repo
+        self._dungeon_repo = dungeon_repo
+        self._campaign_repo = campaign_repo
+
+    def execute(
+        self,
+        room_id: uuid.UUID,
+        dungeon_id: uuid.UUID,
+        campaign_id: uuid.UUID,
+        requesting_user_id: uuid.UUID,
+    ) -> Room:
+        logger.debug(
+            "LinkRoomDungeon: room_id=%s dungeon_id=%s campaign_id=%s user_id=%s",
+            room_id,
+            dungeon_id,
+            campaign_id,
+            requesting_user_id,
+        )
+
+        room = self._room_repo.get_by_id(room_id)
+        if room is None:
+            raise RoomNotFoundError(f"Room {room_id} not found")
+
+        # Only the DM who owns this room may modify it.
+        if room.dm_id != requesting_user_id:
+            raise AuthenticationError(
+                "Only the DM who created this room can link a dungeon to it"
+            )
+
+        # Validate the dungeon exists.
+        if self._dungeon_repo.get_by_id(dungeon_id) is None:
+            raise NotFoundError(f"Dungeon {dungeon_id} not found")
+
+        # Validate the campaign exists.
+        if self._campaign_repo.get_by_id(campaign_id) is None:
+            raise NotFoundError(f"Campaign {campaign_id} not found")
+
+        # Room is a plain (non-frozen) dataclass — fields are mutable.
+        room.dungeon_id = dungeon_id
+        room.campaign_id = campaign_id
+
+        updated_room = self._room_repo.update(room)
+        logger.info(
+            "LinkRoomDungeon: room id=%s linked dungeon_id=%s campaign_id=%s",
+            room_id,
+            dungeon_id,
+            campaign_id,
+        )
+        return updated_room

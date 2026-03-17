@@ -4,6 +4,9 @@ from app.users.api.router import auth_router, users_router
 from app.rooms.api.router import rooms_router
 from app.rooms.api.websocket import ws_router
 from app.combat.api.router import combat_router
+from app.worlds.api.router import worlds_router
+from app.campaigns.api.router import campaigns_router
+from app.dungeons.api.router import dungeons_router
 
 api_router = APIRouter()
 
@@ -13,3 +16,8 @@ api_router.include_router(rooms_router)
 # WebSocket router has no prefix — the endpoint itself is /ws/{room_id}.
 api_router.include_router(ws_router)
 api_router.include_router(combat_router)
+api_router.include_router(worlds_router, prefix="/worlds", tags=["worlds"])
+api_router.include_router(campaigns_router, prefix="/campaigns", tags=["campaigns"])
+# Dungeon routes use two URL shapes — no single prefix fits both, so the
+# router declares its own full paths (/campaigns/{id}/dungeons and /dungeons/{id}).
+api_router.include_router(dungeons_router, tags=["dungeons"])

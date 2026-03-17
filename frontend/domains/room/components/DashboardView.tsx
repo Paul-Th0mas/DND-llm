@@ -6,22 +6,25 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import Button from "@mui/material/Button";
 import AddIcon from "@mui/icons-material/Add";
+import FolderIcon from "@mui/icons-material/Folder";
 import MeetingRoomIcon from "@mui/icons-material/MeetingRoom";
 import { useAuthStore, selectUser } from "@/shared/store/auth.store";
 import { useAuth } from "@/domains/auth/hooks/useAuth";
+import { CreateCampaignWizard } from "@/domains/campaign/components/CreateCampaignWizard";
 import { CreateRoomDialog } from "./CreateRoomDialog";
 import { JoinRoomPanel } from "./JoinRoomPanel";
 
 /**
  * Main dashboard view rendered after authentication.
- * DMs see a card to create a new room; Players see a panel to join via invite code.
+ * DMs see buttons to create a campaign or open a room; Players see a panel to join via invite code.
  * The user's role determines which view is displayed.
  */
 export function DashboardView(): React.ReactElement {
   const user = useAuthStore(selectUser);
   const { logout } = useAuth();
   const router = useRouter();
-  const [createOpen, setCreateOpen] = useState(false);
+  const [campaignWizardOpen, setCampaignWizardOpen] = useState(false);
+  const [createRoomOpen, setCreateRoomOpen] = useState(false);
 
   if (!user) {
     // This state is transient — AuthProvider will redirect to /login.
@@ -113,28 +116,46 @@ export function DashboardView(): React.ReactElement {
           </Typography>
           <Typography variant="body1" color="text.secondary">
             {isDm
-              ? "Create a new room or continue an existing session."
+              ? "Create a campaign and open a room for your players."
               : "Enter an invite code to join a game."}
           </Typography>
         </Box>
 
         {isDm ? (
-          <Button
-            variant="contained"
-            size="large"
-            startIcon={<AddIcon />}
-            onClick={() => setCreateOpen(true)}
-            sx={{
-              textTransform: "none",
-              fontWeight: 600,
-              fontSize: "1rem",
-              borderRadius: 2.5,
-              px: 4,
-              py: 1.5,
-            }}
-          >
-            Create Room
-          </Button>
+          <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap", justifyContent: "center" }}>
+            <Button
+              variant="outlined"
+              size="large"
+              startIcon={<FolderIcon />}
+              onClick={() => router.push("/campaign")}
+              sx={{
+                textTransform: "none",
+                fontWeight: 600,
+                fontSize: "1rem",
+                borderRadius: 2.5,
+                px: 4,
+                py: 1.5,
+              }}
+            >
+              My Campaigns
+            </Button>
+            <Button
+              variant="contained"
+              size="large"
+              startIcon={<AddIcon />}
+              onClick={() => setCampaignWizardOpen(true)}
+              sx={{
+                textTransform: "none",
+                fontWeight: 600,
+                fontSize: "1rem",
+                borderRadius: 2.5,
+                px: 4,
+                py: 1.5,
+              }}
+            >
+              Create Campaign
+            </Button>
+          </Box>
         ) : (
           <Box sx={{ width: "100%", maxWidth: 400 }}>
             <JoinRoomPanel />
@@ -155,9 +176,17 @@ export function DashboardView(): React.ReactElement {
       </Box>
 
       {isDm && (
+        <CreateCampaignWizard
+          open={campaignWizardOpen}
+          onClose={() => setCampaignWizardOpen(false)}
+          onCreated={(id) => router.push(`/campaign/${id}/world`)}
+        />
+      )}
+
+      {isDm && (
         <CreateRoomDialog
-          open={createOpen}
-          onClose={() => setCreateOpen(false)}
+          open={createRoomOpen}
+          onClose={() => setCreateRoomOpen(false)}
         />
       )}
     </Box>

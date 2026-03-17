@@ -219,7 +219,9 @@ def test_apply_status_replaces_same_type() -> None:
     c.apply_status(StatusEffect(effect_type=StatusEffectType.CURSED, duration=1))
     c.apply_status(StatusEffect(effect_type=StatusEffectType.CURSED, duration=3))
 
-    cursed_effects = [e for e in c.status_effects if e.effect_type == StatusEffectType.CURSED]
+    cursed_effects = [
+        e for e in c.status_effects if e.effect_type == StatusEffectType.CURSED
+    ]
     assert len(cursed_effects) == 1
     assert cursed_effects[0].duration == 3
 
@@ -230,7 +232,9 @@ def test_tick_status_decrements_duration() -> None:
 
     c.tick_status_effects()
 
-    frozen = next(e for e in c.status_effects if e.effect_type == StatusEffectType.FROZEN)
+    frozen = next(
+        e for e in c.status_effects if e.effect_type == StatusEffectType.FROZEN
+    )
     assert frozen.duration == 1
 
 
