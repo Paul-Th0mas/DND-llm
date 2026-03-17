@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
 import Chip from "@mui/material/Chip";
 import CircularProgress from "@mui/material/CircularProgress";
 import Dialog from "@mui/material/Dialog";
@@ -27,12 +29,12 @@ import {
   CAMPAIGN_LEVEL_MIN,
   CAMPAIGN_PLAYER_COUNT_MAX,
   CAMPAIGN_PLAYER_COUNT_MIN,
-  CAMPAIGN_SESSION_COUNT_MAX,
-  CAMPAIGN_SESSION_COUNT_MIN,
 } from "@/shared/constants";
-import type { CampaignTone, CreateCampaignRequest, SettingPreference } from "@/domains/campaign/types";
+import type { CampaignTone, CreateCampaignRequest } from "@/domains/campaign/types";
+import { getWorlds } from "@/domains/world/services/world.service";
+import type { WorldSummary } from "@/domains/world/types";
 
-const STEPS = ["Basics", "Logistics", "Themes & Rules", "Safety", "Review"] as const;
+const STEPS = ["World", "Basics", "Logistics", "Themes", "Safety", "Review"] as const;
 
 const TONES: readonly CampaignTone[] = [
   "dark_fantasy",
@@ -40,14 +42,6 @@ const TONES: readonly CampaignTone[] = [
   "horror",
   "political_intrigue",
   "swashbuckling",
-];
-
-const SETTINGS: readonly SettingPreference[] = [
-  "homebrew",
-  "forgotten_realms",
-  "eberron",
-  "ravenloft",
-  "greyhawk",
 ];
 
 const EDITIONS = ["5e", "5.5e", "Pathfinder 2e", "OSE"] as const;
@@ -63,53 +57,42 @@ function toLabel(value: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-// Internal form state accumulated across the five wizard steps.
+// Internal form state accumulated across the wizard steps.
 interface WizardFormData {
+  // Step 0 — World
+  worldId: string;
   // Step 1 — Basics
   campaignName: string;
   edition: string;
   tone: CampaignTone | "";
-  settingPreference: SettingPreference | "";
   // Step 2 — Logistics
   playerCount: number;
   levelStart: number;
   levelEnd: number;
-  sessionCountEstimate: number;
-  // Step 3 — Themes & Rules
+  // Step 3 — Themes
   themes: readonly string[];
   themeInput: string;
-  homebrewRules: readonly string[];
-  homebrewInput: string;
-  inspirations: string;
-  // Step 4 — Safety (Lines & Veils)
+  // Step 4 — Safety (Lines)
   lines: readonly string[];
   lineInput: string;
-  veils: readonly string[];
-  veilInput: string;
 }
 
 const INITIAL_FORM: WizardFormData = {
+  worldId: "",
   campaignName: "",
   edition: "5e",
   tone: "",
-  settingPreference: "",
   playerCount: 4,
   levelStart: 1,
   levelEnd: 10,
-  sessionCountEstimate: 20,
   themes: [],
   themeInput: "",
-  homebrewRules: [],
-  homebrewInput: "",
-  inspirations: "",
   lines: [],
   lineInput: "",
-  veils: [],
-  veilInput: "",
 };
 
 /** Props for the CreateCampaignWizard dialog. */
-interface CreateCampaignWizardProps {
+export interface CreateCampaignWizardProps {
   readonly open: boolean;
   readonly onClose: () => void;
   /** Called when a campaign has been created successfully. Receives the new campaign ID. */
@@ -118,7 +101,8 @@ interface CreateCampaignWizardProps {
 
 /**
  * Multi-step dialog wizard for DMs to define and create a new campaign.
- * Steps: Basics → Logistics → Themes & Rules → Safety → Review.
+ * Steps: World -> Basics -> Logistics -> Themes & Rules -> Safety -> Review.
+ * The first step lets the DM pick from a list of pre-seeded worlds.
  * On submit calls createCampaign() and writes the campaign ID to the campaign store.
  */
 export function CreateCampaignWizard({
@@ -130,12 +114,43 @@ export function CreateCampaignWizard({
   const [formData, setFormData] = useState<WizardFormData>(INITIAL_FORM);
   const [validationError, setValidationError] = useState<string | null>(null);
 
+  // World picker state — loaded lazily when the dialog opens on step 0.
+  const [worlds, setWorlds] = useState<WorldSummary[]>([]);
+  const [isLoadingWorlds, setIsLoadingWorlds] = useState(false);
+  const [worldsError, setWorldsError] = useState<string | null>(null);
+
   const { create, isCreating, error: creationError } = useCampaignCreation();
+
+  // Load worlds when the dialog opens and we are on the world step.
+  useEffect(() => {
+    if (!open || activeStep !== 0) return;
+
+    let cancelled = false;
+    setIsLoadingWorlds(true);
+    setWorldsError(null);
+
+    getWorlds()
+      .then((result) => {
+        if (!cancelled) setWorlds(result);
+      })
+      .catch(() => {
+        if (!cancelled) setWorldsError("Failed to load worlds. Please close and try again.");
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingWorlds(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, activeStep]);
 
   function handleClose(): void {
     setActiveStep(0);
     setFormData(INITIAL_FORM);
     setValidationError(null);
+    setWorlds([]);
+    setWorldsError(null);
     onClose();
   }
 
@@ -150,11 +165,13 @@ export function CreateCampaignWizard({
    */
   function validateStep(step: number): string | null {
     if (step === 0) {
-      if (!formData.campaignName.trim()) return "Campaign name is required.";
-      if (!formData.tone) return "Please select a tone.";
-      if (!formData.settingPreference) return "Please select a setting preference.";
+      if (!formData.worldId) return "Please select a world.";
     }
     if (step === 1) {
+      if (!formData.campaignName.trim()) return "Campaign name is required.";
+      if (!formData.tone) return "Please select a tone.";
+    }
+    if (step === 2) {
       if (formData.levelStart > formData.levelEnd) {
         return "Level range start cannot be greater than end.";
       }
@@ -183,25 +200,19 @@ export function CreateCampaignWizard({
     const request: CreateCampaignRequest = {
       campaign_name: formData.campaignName.trim(),
       edition: formData.edition,
-      // Safe to cast — validateStep confirmed they are non-empty at step 0.
+      // Safe to cast — validateStep confirmed they are non-empty at step 1.
       tone: formData.tone as CampaignTone,
-      setting_preference: formData.settingPreference as SettingPreference,
+      world_id: formData.worldId,
       player_count: formData.playerCount,
       level_range: { start: formData.levelStart, end: formData.levelEnd },
-      session_count_estimate: formData.sessionCountEstimate,
       themes: formData.themes,
-      homebrew_rules: formData.homebrewRules,
-      inspirations: formData.inspirations.trim() || null,
-      content_boundaries: { lines: formData.lines, veils: formData.veils },
+      content_boundaries: { lines: formData.lines },
     };
 
     await create(request, token);
     // The hook writes to the store; read the ID from the store via the callback.
-    // We use the hook's isCreating flag to detect completion; on success creationError is null.
-    // The parent is notified via onCreated once the store has the ID.
     // Since useCampaignCreation calls setCampaignId synchronously after the API call,
-    // we can read it from the store after awaiting. Import the store selector here
-    // to avoid prop-drilling the ID back up.
+    // we can read it from the store after awaiting.
     const { useCampaignStore } = await import("@/domains/campaign/store/campaign.store");
     const campaignId = useCampaignStore.getState().campaignId;
     if (campaignId !== null) {
@@ -212,8 +223,8 @@ export function CreateCampaignWizard({
 
   // Helper to add a tag to a list field and clear the input.
   function addTag(
-    listKey: "themes" | "homebrewRules" | "lines" | "veils",
-    inputKey: "themeInput" | "homebrewInput" | "lineInput" | "veilInput"
+    listKey: "themes" | "lines",
+    inputKey: "themeInput" | "lineInput"
   ): void {
     const value = formData[inputKey].trim();
     if (!value) return;
@@ -225,7 +236,7 @@ export function CreateCampaignWizard({
   }
 
   function removeTag(
-    listKey: "themes" | "homebrewRules" | "lines" | "veils",
+    listKey: "themes" | "lines",
     index: number
   ): void {
     setFormData((prev) => ({
@@ -235,6 +246,57 @@ export function CreateCampaignWizard({
   }
 
   // ---- Step renderers ----
+
+  function renderStep0(): React.ReactElement {
+    if (isLoadingWorlds) {
+      return (
+        <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, py: 5 }}>
+          <CircularProgress size={36} />
+          <Typography variant="body2" color="text.secondary">Loading worlds...</Typography>
+        </Box>
+      );
+    }
+
+    if (worldsError !== null) {
+      return (
+        <Alert severity="error" sx={{ mt: 1 }}>{worldsError}</Alert>
+      );
+    }
+
+    return (
+      <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5, pt: 1 }}>
+        <Typography variant="body2" color="text.secondary">
+          Select the world your campaign will be set in.
+        </Typography>
+        {worlds.map((world) => (
+          <Card
+            key={world.world_id}
+            variant="outlined"
+            onClick={() => setFormData((prev) => ({ ...prev, worldId: world.world_id }))}
+            sx={{
+              cursor: "pointer",
+              borderColor: formData.worldId === world.world_id ? "#a07d60" : "divider",
+              borderWidth: formData.worldId === world.world_id ? 2 : 1,
+              transition: "border-color 0.15s, border-width 0.15s",
+              "&:hover": { borderColor: "#a07d60" },
+            }}
+          >
+            <CardContent sx={{ py: 1.5, "&:last-child": { pb: 1.5 } }}>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
+                <Typography variant="subtitle2" fontWeight={700}>
+                  {world.name}
+                </Typography>
+                <Chip label={toLabel(world.theme)} size="small" variant="outlined" />
+              </Box>
+              <Typography variant="body2" color="text.secondary">
+                {world.description}
+              </Typography>
+            </CardContent>
+          </Card>
+        ))}
+      </Box>
+    );
+  }
 
   function renderStep1(): React.ReactElement {
     return (
@@ -281,24 +343,6 @@ export function CreateCampaignWizard({
             ))}
           </Select>
         </FormControl>
-
-        <FormControl fullWidth size="small">
-          <InputLabel id="setting-label">Setting Preference</InputLabel>
-          <Select
-            labelId="setting-label"
-            label="Setting Preference"
-            value={formData.settingPreference}
-            onChange={(e) =>
-              setFormData((prev) => ({ ...prev, settingPreference: e.target.value as SettingPreference }))
-            }
-            inputProps={{ "aria-label": "Setting Preference" }}
-            sx={{ borderRadius: 2 }}
-          >
-            {SETTINGS.map((s) => (
-              <MenuItem key={s} value={s}>{toLabel(s)}</MenuItem>
-            ))}
-          </Select>
-        </FormControl>
       </Box>
     );
   }
@@ -340,23 +384,6 @@ export function CreateCampaignWizard({
             aria-label="Level Range"
           />
         </Box>
-
-        <Box>
-          <Typography variant="body2" color="text.secondary" gutterBottom>
-            Estimated Sessions: {formData.sessionCountEstimate}
-          </Typography>
-          <Slider
-            value={formData.sessionCountEstimate}
-            onChange={(_, v) =>
-              setFormData((prev) => ({ ...prev, sessionCountEstimate: v as number }))
-            }
-            min={CAMPAIGN_SESSION_COUNT_MIN}
-            max={CAMPAIGN_SESSION_COUNT_MAX}
-            step={1}
-            valueLabelDisplay="auto"
-            aria-label="Session Count Estimate"
-          />
-        </Box>
       </Box>
     );
   }
@@ -388,44 +415,6 @@ export function CreateCampaignWizard({
             ))}
           </Box>
         </Box>
-
-        {/* Homebrew rules tag input */}
-        <Box>
-          <Typography variant="body2" gutterBottom>Homebrew Rules</Typography>
-          <Box sx={{ display: "flex", gap: 1 }}>
-            <TextField
-              size="small"
-              fullWidth
-              placeholder="e.g. flanking rules, variant encumbrance"
-              value={formData.homebrewInput}
-              onChange={(e) => setFormData((prev) => ({ ...prev, homebrewInput: e.target.value }))}
-              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addTag("homebrewRules", "homebrewInput"); } }}
-              inputProps={{ "aria-label": "Homebrew rule input" }}
-              sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2 } }}
-            />
-            <Button variant="outlined" onClick={() => addTag("homebrewRules", "homebrewInput")} sx={{ borderRadius: 2, textTransform: "none" }}>
-              Add
-            </Button>
-          </Box>
-          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, mt: 1 }}>
-            {formData.homebrewRules.map((r, i) => (
-              <Chip key={i} label={r} size="small" onDelete={() => removeTag("homebrewRules", i)} />
-            ))}
-          </Box>
-        </Box>
-
-        <TextField
-          label="Inspirations (optional)"
-          value={formData.inspirations}
-          onChange={(e) => setFormData((prev) => ({ ...prev, inspirations: e.target.value }))}
-          fullWidth
-          size="small"
-          multiline
-          rows={2}
-          placeholder="Books, films, or games that inspired the campaign..."
-          inputProps={{ "aria-label": "Inspirations" }}
-          sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2 } }}
-        />
       </Box>
     );
   }
@@ -434,14 +423,12 @@ export function CreateCampaignWizard({
     return (
       <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5, pt: 1 }}>
         <Typography variant="body2" color="text.secondary">
-          Lines &amp; Veils is a safety tool for collaborative storytelling.
+          Lines are a safety tool for collaborative storytelling.
           <Tooltip
             title={
               <Box sx={{ p: 0.5, maxWidth: 260 }}>
                 <Typography variant="caption">
                   <strong>Lines</strong> — content that will never appear in the game, even off-screen (hard limits).
-                  <br /><br />
-                  <strong>Veils</strong> — content that may happen but is not described in detail; it fades to black (soft limits).
                 </Typography>
               </Box>
             }
@@ -477,46 +464,21 @@ export function CreateCampaignWizard({
             ))}
           </Box>
         </Box>
-
-        {/* Veils */}
-        <Box>
-          <Typography variant="body2" fontWeight={600} gutterBottom>Veils (fade to black)</Typography>
-          <Box sx={{ display: "flex", gap: 1 }}>
-            <TextField
-              size="small"
-              fullWidth
-              placeholder="e.g. graphic torture, detailed gore"
-              value={formData.veilInput}
-              onChange={(e) => setFormData((prev) => ({ ...prev, veilInput: e.target.value }))}
-              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addTag("veils", "veilInput"); } }}
-              inputProps={{ "aria-label": "Veil input" }}
-              sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2 } }}
-            />
-            <Button variant="outlined" onClick={() => addTag("veils", "veilInput")} sx={{ borderRadius: 2, textTransform: "none" }}>
-              Add
-            </Button>
-          </Box>
-          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, mt: 1 }}>
-            {formData.veils.map((v, i) => (
-              <Chip key={i} label={v} size="small" color="warning" onDelete={() => removeTag("veils", i)} />
-            ))}
-          </Box>
-        </Box>
       </Box>
     );
   }
 
   function renderReview(): React.ReactElement {
+    const selectedWorld = worlds.find((w) => w.world_id === formData.worldId);
     return (
       <Box sx={{ display: "flex", flexDirection: "column", gap: 2, pt: 1 }}>
         <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+          <Chip label={`World: ${selectedWorld?.name ?? "—"}`} size="small" />
           <Chip label={`Name: ${formData.campaignName || "—"}`} size="small" />
           <Chip label={`Edition: ${formData.edition}`} size="small" />
           <Chip label={`Tone: ${formData.tone ? toLabel(formData.tone) : "—"}`} size="small" />
-          <Chip label={`Setting: ${formData.settingPreference ? toLabel(formData.settingPreference) : "—"}`} size="small" />
           <Chip label={`Players: ${formData.playerCount}`} size="small" />
           <Chip label={`Levels: ${formData.levelStart}–${formData.levelEnd}`} size="small" />
-          <Chip label={`Sessions: ~${formData.sessionCountEstimate}`} size="small" />
         </Box>
         {formData.themes.length > 0 && (
           <Box>
@@ -531,14 +493,6 @@ export function CreateCampaignWizard({
             <Typography variant="caption" color="text.secondary">Lines</Typography>
             <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, mt: 0.5 }}>
               {formData.lines.map((l, i) => <Chip key={i} label={l} size="small" color="error" variant="outlined" />)}
-            </Box>
-          </Box>
-        )}
-        {formData.veils.length > 0 && (
-          <Box>
-            <Typography variant="caption" color="text.secondary">Veils</Typography>
-            <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, mt: 0.5 }}>
-              {formData.veils.map((v, i) => <Chip key={i} label={v} size="small" color="warning" variant="outlined" />)}
             </Box>
           </Box>
         )}
@@ -559,11 +513,12 @@ export function CreateCampaignWizard({
     }
 
     switch (activeStep) {
-      case 0: return renderStep1();
-      case 1: return renderStep2();
-      case 2: return renderStep3();
-      case 3: return renderStep4();
-      case 4: return renderReview();
+      case 0: return renderStep0();
+      case 1: return renderStep1();
+      case 2: return renderStep2();
+      case 3: return renderStep3();
+      case 4: return renderStep4();
+      case 5: return renderReview();
       default: return <></>;
     }
   }

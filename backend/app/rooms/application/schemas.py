@@ -11,9 +11,20 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 
+class LinkRoomDungeonRequest(BaseModel):
+    """Request body for PATCH /rooms/{room_id}/link."""
+
+    dungeon_id: uuid.UUID
+    campaign_id: uuid.UUID
+
+
 class CreateRoomRequest(BaseModel):
     name: str
     max_players: int = Field(default=8, ge=1, le=50)
+    # Optional: link this room to a generated dungeon session.
+    dungeon_id: uuid.UUID | None = None
+    # Optional: link this room to its parent campaign for narrative context.
+    campaign_id: uuid.UUID | None = None
 
 
 class RoomResponse(BaseModel):
@@ -27,6 +38,8 @@ class RoomResponse(BaseModel):
     is_active: bool
     created_at: datetime
     player_ids: list[uuid.UUID]
+    dungeon_id: uuid.UUID | None = None
+    campaign_id: uuid.UUID | None = None
 
 
 class CreateRoomResponse(BaseModel):

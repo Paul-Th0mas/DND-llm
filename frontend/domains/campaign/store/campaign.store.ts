@@ -8,33 +8,51 @@ type CampaignStore = CampaignState & CampaignActions;
 
 /**
  * Zustand store for the Campaign domain.
- * Tracks the active campaign ID, its generated world detail, and the
- * loading/error state for creation and world generation requests.
+ * Tracks the active campaign ID, campaign list, active campaign detail,
+ * the generated campaign world, and the loading/error state for all requests.
  */
 export const useCampaignStore = create<CampaignStore>()(
   devtools(
     (set) => ({
       // Initial state.
       campaignId: null,
+      campaigns: [],
+      activeCampaign: null,
       campaignWorld: null,
       isCreating: false,
+      isLoadingCampaigns: false,
       isGeneratingWorld: false,
       error: null,
 
       // Actions.
       setCampaignId: (campaignId) =>
         set({ campaignId }, false, "campaign/setCampaignId"),
-      setCampaignWorld: (world: CampaignWorldDetailResponse) =>
-        set({ campaignWorld: world, error: null }, false, "campaign/setCampaignWorld"),
+      setCampaigns: (campaigns) =>
+        set({ campaigns, error: null }, false, "campaign/setCampaigns"),
+      setActiveCampaign: (activeCampaign) =>
+        set({ activeCampaign, error: null }, false, "campaign/setActiveCampaign"),
+      setCampaignWorld: (campaignWorld) =>
+        set({ campaignWorld, error: null }, false, "campaign/setCampaignWorld"),
       setCreating: (isCreating) =>
         set({ isCreating }, false, "campaign/setCreating"),
+      setLoadingCampaigns: (isLoadingCampaigns) =>
+        set({ isLoadingCampaigns }, false, "campaign/setLoadingCampaigns"),
       setGeneratingWorld: (isGeneratingWorld) =>
         set({ isGeneratingWorld }, false, "campaign/setGeneratingWorld"),
       setError: (error) =>
         set({ error }, false, "campaign/setError"),
       clearCampaign: () =>
         set(
-          { campaignId: null, campaignWorld: null, isCreating: false, isGeneratingWorld: false, error: null },
+          {
+            campaignId: null,
+            campaigns: [],
+            activeCampaign: null,
+            campaignWorld: null,
+            isCreating: false,
+            isLoadingCampaigns: false,
+            isGeneratingWorld: false,
+            error: null,
+          },
           false,
           "campaign/clearCampaign"
         ),
@@ -52,17 +70,41 @@ export const selectCampaignId = (state: CampaignStore): CampaignState["campaignI
   state.campaignId;
 
 /**
- * Selects the campaign world detail from the Campaign store.
+ * Selects the campaigns list from the Campaign store.
  * @param state - The current Campaign store state.
- * @returns The generated world detail, or null if not yet generated.
+ * @returns The list of campaign summaries.
  */
-export const selectCampaignWorld = (state: CampaignStore): CampaignState["campaignWorld"] =>
+export const selectCampaigns = (state: CampaignStore): CampaignState["campaigns"] =>
+  state.campaigns;
+
+/**
+ * Selects the active campaign detail from the Campaign store.
+ * @param state - The current Campaign store state.
+ * @returns The active campaign detail, or null if not yet loaded.
+ */
+export const selectActiveCampaign = (state: CampaignStore): CampaignState["activeCampaign"] =>
+  state.activeCampaign;
+
+/**
+ * Selects the generated campaign world from the Campaign store.
+ * @param state - The current Campaign store state.
+ * @returns The generated campaign world, or null if not yet generated.
+ */
+export const selectCampaignWorld = (state: CampaignStore): CampaignWorldDetailResponse | null =>
   state.campaignWorld;
+
+/**
+ * Selects the campaigns-loading flag from the Campaign store.
+ * @param state - The current Campaign store state.
+ * @returns True if a campaigns list request is in flight.
+ */
+export const selectIsLoadingCampaigns = (state: CampaignStore): CampaignState["isLoadingCampaigns"] =>
+  state.isLoadingCampaigns;
 
 /**
  * Selects the world-generating flag from the Campaign store.
  * @param state - The current Campaign store state.
- * @returns True if a world generation request is in flight.
+ * @returns True if a campaign world generation request is in flight.
  */
 export const selectIsGeneratingWorld = (state: CampaignStore): CampaignState["isGeneratingWorld"] =>
   state.isGeneratingWorld;

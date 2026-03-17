@@ -8,46 +8,66 @@ import Typography from "@mui/material/Typography";
 import { useCampaignWorldGeneration } from "@/domains/campaign/hooks/useCampaignWorldGeneration";
 
 /** Props for the GenerateCampaignWorldButton component. */
-interface GenerateCampaignWorldButtonProps {
+export interface GenerateCampaignWorldButtonProps {
+  /** UUID of the campaign to generate a world for. */
   readonly campaignId: string;
+  /** JWT access token of the authenticated DM. */
   readonly token: string;
 }
 
 /**
- * Renders a button that triggers POST /api/v1/campaigns/{id}/world.
- * Shows a loading indicator while the request is in flight and surfaces
- * errors inline below the button. On success the campaign store is updated
- * with the generated world detail automatically via the hook.
+ * Button that triggers LLM world generation for a given campaign.
+ * Shows a spinner and disables the button while generation is in progress.
+ * Displays an error alert if generation fails.
  */
 export function GenerateCampaignWorldButton({
   campaignId,
   token,
 }: GenerateCampaignWorldButtonProps): React.ReactElement {
-  const { generateWorld, isGeneratingWorld, error } = useCampaignWorldGeneration();
+  const { generate, isGenerating, error } = useCampaignWorldGeneration();
+
+  function handleClick(): void {
+    void generate(campaignId, token);
+  }
+
+  if (isGenerating) {
+    return (
+      <Box
+        sx={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: 2,
+          py: 6,
+        }}
+      >
+        <CircularProgress size={40} />
+        <Typography variant="body2" color="text.secondary">
+          Generating campaign world — this may take a moment...
+        </Typography>
+      </Box>
+    );
+  }
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
-      <Button
-        variant="contained"
-        onClick={() => void generateWorld(campaignId, token)}
-        disabled={isGeneratingWorld}
-        startIcon={isGeneratingWorld ? <CircularProgress size={16} color="inherit" /> : undefined}
-        sx={{ textTransform: "none", fontWeight: 600, borderRadius: 2, alignSelf: "flex-start" }}
-      >
-        {isGeneratingWorld ? "Generating world..." : "Generate World"}
-      </Button>
-
-      {isGeneratingWorld && (
-        <Typography variant="caption" color="text.secondary">
-          Building your campaign world — this may take a few seconds.
-        </Typography>
-      )}
-
+    <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
       {error !== null && (
-        <Alert severity="error" sx={{ fontSize: "0.8rem" }}>
-          {error}
-        </Alert>
+        <Alert severity="error">{error}</Alert>
       )}
+
+      <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, py: 4 }}>
+        <Typography variant="body1" color="text.secondary" textAlign="center">
+          No world has been generated for this campaign yet.
+        </Typography>
+        <Button
+          variant="contained"
+          onClick={handleClick}
+          disabled={isGenerating}
+          sx={{ textTransform: "none", fontWeight: 600, borderRadius: 2 }}
+        >
+          Generate Campaign World
+        </Button>
+      </Box>
     </Box>
   );
 }

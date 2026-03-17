@@ -6,41 +6,36 @@ import { useCampaignStore } from "@/domains/campaign/store/campaign.store";
 import { ApiError } from "@/lib/api/client";
 
 interface UseCampaignWorldGenerationResult {
-  readonly generateWorld: (campaignId: string, token: string) => Promise<void>;
-  readonly isGeneratingWorld: boolean;
+  readonly generate: (campaignId: string, token: string) => Promise<void>;
+  readonly isGenerating: boolean;
   readonly error: string | null;
 }
 
 /**
  * Wraps generateCampaignWorld() and writes the result to the campaign store.
- * Surfaces 404 (campaign not found) and 400 (invalid state) distinctly.
- * @returns A generateWorld callback, the current generating flag, and any error message.
+ * Surfaces 400 (invalid campaign) and 404 (campaign not found) distinctly.
+ * @returns A generate callback, the current generating flag, and any error message.
  */
 export function useCampaignWorldGeneration(): UseCampaignWorldGenerationResult {
   const { setCampaignWorld, setGeneratingWorld, setError, isGeneratingWorld, error } =
     useCampaignStore();
 
-  const generateWorld = useCallback(
+  const generate = useCallback(
     async (campaignId: string, token: string): Promise<void> => {
       setGeneratingWorld(true);
       setError(null);
 
       try {
-        // The API returns GenerateCampaignWorldResponse (summary), but the store
-        // holds CampaignWorldDetailResponse. This hook will need to be updated once
-        // a GET /campaigns/{id}/world endpoint returning full detail exists.
-        // For now, cast the summary to the detail type until the endpoint is available.
-        const response = await generateCampaignWorld(campaignId, token);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        setCampaignWorld(response as any);
+        const world = await generateCampaignWorld(campaignId, token);
+        setCampaignWorld(world);
       } catch (err) {
         if (err instanceof ApiError) {
           if (err.status === 404) {
-            setError("Campaign not found. It may have been deleted.");
+            setError("Campaign not found.");
           } else if (err.status === 400) {
-            setError(`Cannot generate world: ${err.detail}`);
+            setError(`Invalid request: ${err.detail}`);
           } else {
-            setError("World generation failed. Please try again.");
+            setError(`World generation failed: ${err.detail}`);
           }
         } else {
           setError("World generation failed. Please try again.");
@@ -52,5 +47,5 @@ export function useCampaignWorldGeneration(): UseCampaignWorldGenerationResult {
     [setCampaignWorld, setGeneratingWorld, setError]
   );
 
-  return { generateWorld, isGeneratingWorld, error };
+  return { generate, isGenerating: isGeneratingWorld, error };
 }

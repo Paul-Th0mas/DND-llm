@@ -1,64 +1,64 @@
 """
 Application services (use cases) for the worlds bounded context.
 
-Each class handles exactly one use case. Use cases orchestrate the narrator
-port and domain objects but contain no business logic — invariants live in
-the domain layer (WorldSettings.validate).
+Each class handles exactly one use case. Use cases orchestrate the repository
+and schema conversion but contain no business logic — invariants live in the
+domain layer.
 """
 
 import logging
+import uuid
 
-from app.worlds.application.narrator_port import NarratorPort
-from app.worlds.application.schemas import GeneratedWorldResponse, WorldSettingsRequest
+from app.worlds.application.schemas import WorldDetailResponse, WorldSummaryResponse
+from app.worlds.domain.exceptions import WorldNotFoundError
+from app.worlds.domain.repositories import WorldRepository
 
 logger = logging.getLogger(__name__)
 
 
-class GenerateWorldUseCase:
+class GetWorldsUseCase:
     """
-    Orchestrates world generation from a DM's settings request.
+    Returns a summary list of all active worlds.
 
-    Flow:
-      1. Convert request DTO → domain value object (WorldSettings)
-      2. Ask the domain to validate its own invariants
-      3. Delegate generation to the NarratorPort (infrastructure seam)
-      4. Convert the domain aggregate → response DTO
-
-    The use case never contains business logic. It is a coordinator only.
+    Used to populate the world selection screen when a DM creates a campaign.
     """
 
-    def __init__(self, narrator: NarratorPort) -> None:
-        self._narrator = narrator
+    def __init__(self, repo: WorldRepository) -> None:
+        self._repo = repo
 
-    def execute(self, request: WorldSettingsRequest) -> GeneratedWorldResponse:
+    def execute(self) -> list[WorldSummaryResponse]:
         """
-        Run the world generation pipeline.
+        Fetch all active worlds and return summary DTOs.
 
-        @param request - Validated inbound Pydantic DTO from the router.
-        @returns GeneratedWorldResponse ready for HTTP serialization.
-        @raises InvalidWorldSettingsError if domain validation fails.
+        @returns A list of WorldSummaryResponse — may be empty if no worlds are seeded.
         """
-        logger.info(
-            "GenerateWorldUseCase.execute: theme=%s difficulty=%s rooms=%d",
-            request.theme,
-            request.difficulty,
-            request.room_count,
-        )
+        logger.info("GetWorldsUseCase.execute")
+        worlds = self._repo.get_all_active()
+        logger.info("GetWorldsUseCase: returning %d worlds", len(worlds))
+        return [WorldSummaryResponse.from_domain(w) for w in worlds]
 
-        # Step 1: Convert DTO → domain value object
-        settings = request.to_domain()
 
-        # Step 2: Let the domain enforce its invariants
-        settings.validate()
+class GetWorldByIdUseCase:
+    """
+    Returns the full detail of a single world by id.
 
-        # Step 3: Generate the world via the narrator (infrastructure seam)
-        world = self._narrator.generate_world(settings)
+    Used on the world detail screen before a DM commits to creating a campaign.
+    """
 
-        logger.info(
-            "World generated: name=%s rooms=%d",
-            world.world_name,
-            len(world.rooms),
-        )
+    def __init__(self, repo: WorldRepository) -> None:
+        self._repo = repo
 
-        # Step 4: Convert domain aggregate → response DTO
-        return GeneratedWorldResponse.from_domain(world)
+    def execute(self, world_id: uuid.UUID) -> WorldDetailResponse:
+        """
+        Fetch one world by id and return the full detail DTO.
+
+        @param world_id - The UUID of the world to fetch.
+        @returns WorldDetailResponse with factions and bosses.
+        @raises WorldNotFoundError if the world does not exist or is inactive.
+        """
+        logger.info("GetWorldByIdUseCase.execute: world_id=%s", world_id)
+        world = self._repo.get_by_id(world_id)
+        if world is None or not world.is_active:
+            logger.warning("GetWorldByIdUseCase: world not found id=%s", world_id)
+            raise WorldNotFoundError(f"World {world_id} not found")
+        return WorldDetailResponse.from_domain(world)

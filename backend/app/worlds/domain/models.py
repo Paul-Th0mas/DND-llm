@@ -1,66 +1,33 @@
 """
 Domain models for the worlds bounded context.
 
-Contains all enums, value objects, and the GeneratedWorld aggregate.
+Worlds are admin-seeded settings (lore, factions, bosses) that DMs select when
+creating a campaign. They are static — not generated on demand.
 
-No SQLAlchemy or FastAPI imports belong here. This is pure Python domain logic.
-The domain enforces its own invariants via validate() on WorldSettings.
+No SQLAlchemy or FastAPI imports belong here. Pure Python domain logic only.
 """
 
 import logging
+import uuid
 from dataclasses import dataclass
+from datetime import datetime
 from enum import Enum
 
-from app.worlds.domain.exceptions import InvalidWorldSettingsError
-
 logger = logging.getLogger(__name__)
+
 
 # ---------------------------------------------------------------------------
 # Enums
 # ---------------------------------------------------------------------------
 
-# Valid room count bounds — enforced by WorldSettings.validate()
-ROOM_COUNT_MIN = 5
-ROOM_COUNT_MAX = 15
-
 
 class Theme(str, Enum):
-    """The narrative setting of a generated world."""
+    """The narrative genre of a world setting."""
 
     MEDIEVAL_FANTASY = "MEDIEVAL_FANTASY"
     CYBERPUNK = "CYBERPUNK"
     MANHWA = "MANHWA"
     POST_APOCALYPTIC = "POST_APOCALYPTIC"
-
-
-class Difficulty(str, Enum):
-    """How aggressively enemies scale in the generated world."""
-
-    EASY = "EASY"
-    NORMAL = "NORMAL"
-    HARD = "HARD"
-    NIGHTMARE = "NIGHTMARE"
-
-
-class QuestFocus(str, Enum):
-    """The primary narrative lens that shapes the generated quest."""
-
-    EXPLORATION = "EXPLORATION"
-    RESCUE = "RESCUE"
-    ASSASSINATION = "ASSASSINATION"
-    HEIST = "HEIST"
-    MYSTERY = "MYSTERY"
-
-
-class RoomType(str, Enum):
-    """The function and flavour of a single dungeon room."""
-
-    COMBAT = "COMBAT"
-    SHOP = "SHOP"
-    REST = "REST"
-    BOSS = "BOSS"
-    TREASURE = "TREASURE"
-    EVENT = "EVENT"
 
 
 # ---------------------------------------------------------------------------
@@ -69,89 +36,66 @@ class RoomType(str, Enum):
 
 
 @dataclass(frozen=True)
-class WorldSettings:
+class PresetFaction:
     """
-    Describes the DM's configuration for a world generation request.
+    A faction that exists within the world's lore.
 
-    This is a value object: two WorldSettings with the same field values are
-    considered equal. Immutability prevents accidental mutation during
-    the generation pipeline.
+    hidden_agenda is DM-only information — it must never be exposed to players
+    via API responses. The repository loads it but the response schema omits it.
     """
 
+    name: str
+    description: str
+    alignment: str
+    public_reputation: str
+    hidden_agenda: str
+
+
+@dataclass(frozen=True)
+class PresetBoss:
+    """
+    A named boss that inhabits the world.
+
+    challenge_rating follows D&D notation (e.g. "CR 15"). abilities is an
+    ordered tuple of notable skill or power names. lore is narrative context
+    fed to the LLM during dungeon generation to maintain consistency.
+    """
+
+    name: str
+    description: str
+    challenge_rating: str
+    abilities: tuple[str, ...]
+    lore: str
+
+
+# ---------------------------------------------------------------------------
+# Aggregate Root
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class World:
+    """
+    Aggregate root for the Worlds bounded context.
+
+    Admin-created and seeded directly into the database. DMs browse and select
+    a World when creating a Campaign. The world's lore, factions, and bosses
+    are passed to the Dungeon narrator as generation context.
+
+    is_active allows soft-deletion without breaking existing Campaign references.
+    """
+
+    id: uuid.UUID
+    name: str
     theme: Theme
-    difficulty: Difficulty
-    room_count: int
-    quest_focus: QuestFocus
-    dm_notes: str | None = None
-    party_size: int = 1
+    description: str
+    lore_summary: str
+    factions: tuple[PresetFaction, ...]
+    bosses: tuple[PresetBoss, ...]
+    is_active: bool
+    created_at: datetime
 
-    def validate(self) -> None:
-        """
-        Enforce domain invariants.
-
-        Raises InvalidWorldSettingsError if any field violates a business rule.
-        Called explicitly by the application layer after construction from the
-        incoming DTO — keeps validation in the domain, not in schemas or routers.
-        """
-        if not (ROOM_COUNT_MIN <= self.room_count <= ROOM_COUNT_MAX):
-            raise InvalidWorldSettingsError(
-                f"room_count must be between {ROOM_COUNT_MIN} and {ROOM_COUNT_MAX}, "
-                f"got {self.room_count}"
-            )
+    def __post_init__(self) -> None:
         logger.debug(
-            "WorldSettings validated: theme=%s difficulty=%s rooms=%d",
-            self.theme,
-            self.difficulty,
-            self.room_count,
+            "World loaded: id=%s name='%s' theme=%s", self.id, self.name, self.theme
         )
-
-
-@dataclass(frozen=True)
-class NarratedRoom:
-    """
-    A single room within a generated world.
-
-    index is 0-based. room_type determines the encounter flavour.
-    enemy_names and npc_names are tuples (immutable sequences) of display names.
-    """
-
-    index: int
-    room_type: RoomType
-    name: str
-    description: str
-    enemy_names: tuple[str, ...]
-    npc_names: tuple[str, ...]
-    special_notes: str | None = None
-
-
-@dataclass(frozen=True)
-class MainQuest:
-    """
-    The primary quest thread for a generated world.
-
-    stages is an ordered tuple of narrative beat descriptions — one per
-    major milestone the party must reach to complete the quest.
-    """
-
-    name: str
-    description: str
-    stages: tuple[str, ...]
-
-
-@dataclass(frozen=True)
-class GeneratedWorld:
-    """
-    Aggregate root representing a fully generated world.
-
-    Returned by NarratorPort.generate_world() and handed to the application
-    layer for schema conversion. len(rooms) must match the room_count in the
-    originating WorldSettings — callers may assert this if needed.
-    """
-
-    world_name: str
-    world_description: str
-    atmosphere: str
-    theme: Theme
-    rooms: tuple[NarratedRoom, ...]
-    main_quest: MainQuest
-    active_factions: tuple[str, ...]

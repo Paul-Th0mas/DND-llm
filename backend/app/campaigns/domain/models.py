@@ -1,10 +1,10 @@
 """
 Domain models for the campaigns bounded context.
 
-Campaign is the aggregate root. It captures all DM requirements for a
-campaign: tone, themes, content boundaries (Lines & Veils), edition, and
-level range. The world_id field is None until POST /campaigns/{id}/world
-is called.
+Campaign is the aggregate root. It captures the DM's requirements for a
+campaign and links to the admin-seeded World that was selected at creation.
+world_id is set at creation and never changes — a campaign belongs to exactly
+one world for its entire lifetime.
 
 No SQLAlchemy or FastAPI imports belong here. Pure Python domain logic only.
 """
@@ -27,8 +27,6 @@ PLAYER_COUNT_MIN = 1
 PLAYER_COUNT_MAX = 8
 LEVEL_MIN = 1
 LEVEL_MAX = 20
-SESSION_COUNT_MIN = 1
-SESSION_COUNT_MAX = 100
 
 
 # ---------------------------------------------------------------------------
@@ -44,16 +42,6 @@ class CampaignTone(str, Enum):
     HORROR = "horror"
     POLITICAL_INTRIGUE = "political_intrigue"
     SWASHBUCKLING = "swashbuckling"
-
-
-class SettingPreference(str, Enum):
-    """Published world or homebrew setting the campaign uses."""
-
-    HOMEBREW = "homebrew"
-    FORGOTTEN_REALMS = "forgotten_realms"
-    EBERRON = "eberron"
-    RAVENLOFT = "ravenloft"
-    GREYHAWK = "greyhawk"
 
 
 # ---------------------------------------------------------------------------
@@ -84,15 +72,13 @@ class LevelRange:
 @dataclass(frozen=True)
 class ContentBoundaries:
     """
-    Safety tool for tonal content management (Lines & Veils).
+    Safety tool for tonal content management.
 
     Lines are hard limits the LLM must never generate.
-    Veils are topics that may be referenced but never described in detail.
-    Both are stored as immutable tuples of DM-entered strings.
+    Stored as an immutable tuple of DM-entered strings.
     """
 
     lines: tuple[str, ...]
-    veils: tuple[str, ...]
 
 
 # ---------------------------------------------------------------------------
@@ -105,12 +91,12 @@ class Campaign:
     """
     Aggregate root for the campaigns bounded context.
 
-    Holds all DM requirements for a campaign and acts as the anchor for
-    downstream generation (world, quests, session prep). Business invariants
-    are enforced by the Campaign.create() factory — never set fields directly.
+    Holds all DM requirements for a campaign and permanently references the
+    World selected at creation. world_id is required and immutable after
+    creation — the world provides the narrative context for dungeon generation.
 
-    The world_id is None until POST /campaigns/{id}/world is called, at which
-    point attach_world() links the campaign to its generated world.
+    Business invariants are enforced by Campaign.create() — never set fields
+    directly.
     """
 
     id: uuid.UUID
@@ -119,15 +105,12 @@ class Campaign:
     tone: CampaignTone
     player_count: int
     level_range: LevelRange
-    session_count_estimate: int
-    setting_preference: SettingPreference
     themes: tuple[str, ...]
     content_boundaries: ContentBoundaries
-    homebrew_rules: tuple[str, ...]
-    inspirations: str | None
     dm_id: uuid.UUID
+    # world_id is mandatory — set at creation from the selected admin world
+    world_id: uuid.UUID
     created_at: datetime
-    world_id: uuid.UUID | None = None
 
     @classmethod
     def create(
@@ -137,29 +120,26 @@ class Campaign:
         tone: CampaignTone,
         player_count: int,
         level_range: LevelRange,
-        session_count_estimate: int,
-        setting_preference: SettingPreference,
         themes: tuple[str, ...],
         content_boundaries: ContentBoundaries,
-        homebrew_rules: tuple[str, ...],
-        inspirations: str | None,
         dm_id: uuid.UUID,
+        world_id: uuid.UUID,
     ) -> "Campaign":
         """
         Factory method — creates a new Campaign and validates invariants.
 
-        The id and created_at are generated here so callers never set them manually.
-        LevelRange validates its own range in __post_init__; remaining checks are here.
+        world_id is the UUID of the admin-seeded World the DM selected.
+        The id and created_at are generated here so callers never set them.
+        LevelRange validates its own range in __post_init__; remaining
+        checks are done below.
+
+        @param world_id - UUID of the selected World aggregate (required).
+        @raises InvalidCampaignError if player_count is out of range.
         """
         if not (PLAYER_COUNT_MIN <= player_count <= PLAYER_COUNT_MAX):
             raise InvalidCampaignError(
                 f"player_count must be {PLAYER_COUNT_MIN}–{PLAYER_COUNT_MAX}, "
                 f"got {player_count}"
-            )
-        if not (SESSION_COUNT_MIN <= session_count_estimate <= SESSION_COUNT_MAX):
-            raise InvalidCampaignError(
-                f"session_count_estimate must be {SESSION_COUNT_MIN}–{SESSION_COUNT_MAX}, "
-                f"got {session_count_estimate}"
             )
 
         campaign_id = uuid.uuid4()
@@ -171,30 +151,17 @@ class Campaign:
             tone=tone,
             player_count=player_count,
             level_range=level_range,
-            session_count_estimate=session_count_estimate,
-            setting_preference=setting_preference,
             themes=themes,
             content_boundaries=content_boundaries,
-            homebrew_rules=homebrew_rules,
-            inspirations=inspirations,
             dm_id=dm_id,
+            world_id=world_id,
             created_at=now,
         )
         logger.info(
-            "Campaign.create: id=%s name='%s' dm_id=%s", campaign_id, name, dm_id
+            "Campaign.create: id=%s name='%s' dm_id=%s world_id=%s",
+            campaign_id,
+            name,
+            dm_id,
+            world_id,
         )
         return campaign
-
-    def attach_world(self, world_id: uuid.UUID) -> None:
-        """
-        Link this campaign to a generated world. Can only be called once.
-
-        Raises InvalidCampaignError if a world is already attached, preventing
-        accidental world regeneration from overwriting the existing one.
-        """
-        if self.world_id is not None:
-            raise InvalidCampaignError(
-                f"Campaign {self.id} already has a world attached: {self.world_id}"
-            )
-        self.world_id = world_id
-        logger.info("Campaign %s attached world %s", self.id, world_id)

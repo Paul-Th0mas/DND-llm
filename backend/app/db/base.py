@@ -11,4 +11,8 @@ class Base(DeclarativeBase):
 from app.users.infrastructure import orm_models as _users_orm  # noqa: F401, E402
 from app.rooms.infrastructure import orm_models as _rooms_orm  # noqa: F401, E402
 from app.combat.infrastructure import orm_models as _combat_orm  # noqa: F401, E402
-from app.campaigns.infrastructure import orm_models as _campaigns_orm  # noqa: F401, E402
+from app.worlds.infrastructure import orm_models as _worlds_orm  # noqa: F401, E402
+from app.campaigns.infrastructure import (
+    orm_models as _campaigns_orm,
+)  # noqa: F401, E402
+from app.dungeons.infrastructure import orm_models as _dungeons_orm  # noqa: F401, E402

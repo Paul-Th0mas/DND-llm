@@ -6,6 +6,12 @@ export interface Room {
   readonly max_players: number;
   readonly is_active: boolean;
   readonly player_ids: readonly string[];
+  /** UUID of the DM who owns this room. */
+  readonly dm_id: string;
+  /** UUID of the dungeon session linked to this room, or null if not set. */
+  readonly dungeon_id: string | null;
+  /** UUID of the campaign linked to this room, or null if not set. */
+  readonly campaign_id: string | null;
 }
 
 /** Response shape returned by room create and join endpoints. */
@@ -76,6 +82,33 @@ export interface ErrorEvent {
   readonly detail: string;
 }
 
+/**
+ * Emitted by the server after the DM starts a session.
+ * Contains the generated dungeon narrative, world lore, and campaign context
+ * for display in the event feed.
+ */
+export interface DungeonIntroEvent {
+  readonly type: "dungeon_intro";
+  readonly dungeon_name: string;
+  readonly premise: string;
+  readonly quest: {
+    readonly name: string;
+    readonly description: string;
+    readonly stages: readonly string[];
+  };
+  readonly rooms: ReadonlyArray<{ readonly name: string; readonly description: string }>;
+  readonly world: {
+    readonly name: string;
+    readonly lore_summary: string;
+    readonly theme: string;
+  };
+  readonly campaign: {
+    readonly name: string;
+    readonly tone: string;
+    readonly themes: readonly string[];
+  };
+}
+
 /** Union of all possible server-to-client WebSocket events. */
 export type GameEvent =
   | RoomStateEvent
@@ -84,4 +117,5 @@ export type GameEvent =
   | DiceRollEvent
   | DmAnnouncementEvent
   | ChatMessageEvent
-  | ErrorEvent;
+  | ErrorEvent
+  | DungeonIntroEvent;
