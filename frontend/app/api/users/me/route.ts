@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 
 // CORS: the backend needs CORSMiddleware added to app/main.py before this BFF
 // proxy can be removed and the frontend calls the backend directly.
-const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
+// BACKEND_URL is a server-only variable (no NEXT_PUBLIC_ prefix) so it is
+// read from process.env at runtime rather than being inlined at build time.
+const BACKEND_URL = process.env.BACKEND_URL ?? "";
 
 /**
  * BFF proxy for GET /api/v1/users/me.
