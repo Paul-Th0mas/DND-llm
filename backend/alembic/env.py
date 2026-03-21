@@ -1,19 +1,20 @@
+import os
 from logging.config import fileConfig
 
 from sqlalchemy import create_engine, pool
 
 from alembic import context
 
-from app.core.config import settings
 from app.db.base import Base
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
 
-# Point Alembic at the application DATABASE_URL so it does not need to be
-# duplicated in alembic.ini.
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+# Read DATABASE_URL directly from the environment so the migrate service does
+# not need the full application settings (GOOGLE_CLIENT_ID, SECRET_KEY, etc.).
+database_url = os.environ["DATABASE_URL"]
+config.set_main_option("sqlalchemy.url", database_url)
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
@@ -55,8 +56,7 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
-    # Use create_engine directly so the URL comes from settings, not alembic.ini.
-    connectable = create_engine(settings.DATABASE_URL, poolclass=pool.NullPool)
+    connectable = create_engine(database_url, poolclass=pool.NullPool)
 
     with connectable.connect() as connection:
         context.configure(
