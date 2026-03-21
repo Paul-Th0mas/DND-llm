@@ -35,23 +35,16 @@ The remaining variables (`POSTGRES_*`, `DATABASE_URL`) use sensible local defaul
 
 This project uses a single root `docker-compose.yml` to orchestrate all services natively.
 
-To build the images and start the database, backend, and frontend containers (in detached mode), run:
+To build the images and start all services (in detached mode), run:
 
 ```bash
 docker compose up --build -d
 ```
 
-### 3. Run Database Migrations
+Database migrations run automatically before the backend starts. A dedicated `migrate` service
+runs `alembic upgrade head` on every `docker compose up`, so no manual migration step is required.
 
-The database schema is not created automatically on first boot. After the containers are running, apply all Alembic migrations to create the required tables:
-
-```bash
-docker compose exec backend alembic upgrade head
-```
-
-This command must be re-run whenever new migrations are added (e.g. after pulling changes that include schema updates).
-
-### 4. Accessing the Services
+### 3. Accessing the Services
 
 Once all the containers are running, you can access the components at the following local URLs:
 
@@ -60,7 +53,7 @@ Once all the containers are running, you can access the components at the follow
 - **API Documentation (Swagger UI)**: [http://localhost:8000/docs](http://localhost:8000/docs)
 - **API Documentation (ReDoc)**: [http://localhost:8000/redoc](http://localhost:8000/redoc)
 
-### 5. Viewing Logs
+### 4. Viewing Logs
 
 If you want to view the logs for the running services to monitor activity or troubleshoot errors:
 
@@ -72,7 +65,7 @@ docker compose logs -f
 docker compose logs -f backend
 ```
 
-### 6. Stopping the Application
+### 5. Stopping the Application
 
 To cleanly stop the containers and their network without destroying your persisted PostgreSQL data, run:
 
