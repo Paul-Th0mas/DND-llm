@@ -227,4 +227,7 @@ next-env.d.ts
 .claude/
 CLAUDE.md
 *.md
+!README.md
+!frontend/README.md
+!backend/docs/**/*.md
 .agent-task-*.md
