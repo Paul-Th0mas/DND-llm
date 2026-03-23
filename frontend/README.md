@@ -1,36 +1,80 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# DnD LLM - Frontend
 
-## Getting Started
+The Next.js frontend for the DnD LLM project. Built with TypeScript strict mode, Material UI, Tailwind CSS, and Zustand following Domain Driven Design principles.
 
-First, run the development server:
+## Tech Stack
+
+- **Next.js** (App Router) — server-first React framework
+- **TypeScript** (strict mode) — all code is fully typed
+- **Material UI v7** — component-level styling and theming
+- **Tailwind CSS v4** — layout, spacing, and responsive breakpoints
+- **Zustand v5** — client-side global state management
+- **Vitest + React Testing Library** — unit and component testing
+- **Yarn** — the only supported package manager for this project
+
+## Local Development
+
+Install dependencies:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+yarn install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Start the development server:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+yarn dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The application is served at [http://localhost:3000](http://localhost:3000).
 
-## Learn More
+## Running Tests
 
-To learn more about Next.js, take a look at the following resources:
+Single run (CI):
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+yarn test:run
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Watch mode (development):
 
-## Deploy on Vercel
+```bash
+yarn test
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Folder Structure
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```
+app/                        # Next.js App Router pages and layouts
+  (domain)/                 # Route groups per domain
+
+domains/                    # Core DDD layer — one folder per business domain
+  <domain-name>/
+    components/             # UI components scoped to this domain
+    hooks/                  # Domain-specific React hooks
+    services/               # Business logic and API calls
+    store/                  # Zustand store slice for this domain
+    types/                  # Domain types and interfaces
+    constants/              # Domain-scoped constants
+    utils/                  # Domain-scoped utility functions
+    __tests__/              # Tests co-located with the domain
+
+shared/                     # Code shared across multiple domains
+  components/               # Reusable UI components
+  hooks/                    # Shared React hooks
+  types/                    # Shared TypeScript types
+  utils/                    # Shared utility functions
+  constants/                # App-wide constants
+  store/                    # Zustand slices used across domains
+
+lib/                        # External library configuration
+  mui/                      # MUI theme definition
+  api/                      # API client setup
+```
+
+### Key conventions
+
+- Domains must not import directly from other domains. Use `shared/` for cross-domain code.
+- Business logic belongs in `services/`, not in components or hooks.
+- Components marked `"use client"` should be as small and leaf-level as possible.
+- Never use `npm`, `pnpm`, or `bun` — use `yarn` exclusively.

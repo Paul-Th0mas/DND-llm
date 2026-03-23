@@ -19,17 +19,30 @@ Start by creating your local environment variables file. Copy the provided `.env
 cp .env.example .env
 ```
 
-Ensure the variables are correctly filled out. Dummy values are provided by default, which is sufficient to get the containers initialized and running locally without crashing.
+Open `.env` and review the following variables before starting the application:
+
+- **`GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`**: OAuth credentials from the [Google Cloud Console](https://console.cloud.google.com/) under APIs & Services > Credentials. Required for user authentication.
+- **`SECRET_KEY`**: Used to sign JWT tokens. Must be a cryptographically random string in any non-trivial deployment. Generate one with:
+  ```bash
+  openssl rand -hex 32
+  ```
+- **`GEMINI_API_KEY`**: Required for world and campaign generation. Obtain a key from [Google AI Studio](https://aistudio.google.com/app/apikey). The application will start with the dummy value but LLM generation calls will fail until a real key is provided.
+- **`FRONTEND_URL`**: The URL of the frontend, used for CORS and OAuth redirects. Defaults to `http://localhost:3000` for local development.
+
+The remaining variables (`POSTGRES_*`, `DATABASE_URL`) use sensible local defaults and do not need to be changed for local development.
 
 ### 2. Building and Running the Application
 
 This project uses a single root `docker-compose.yml` to orchestrate all services natively.
 
-To build the images and start the database, backend, and frontend containers (in detached mode), run:
+To build the images and start all services (in detached mode), run:
 
 ```bash
 docker compose up --build -d
 ```
+
+Database migrations run automatically before the backend starts. A dedicated `migrate` service
+runs `alembic upgrade head` on every `docker compose up`, so no manual migration step is required.
 
 ### 3. Accessing the Services
 
@@ -37,6 +50,8 @@ Once all the containers are running, you can access the components at the follow
 
 - **Frontend (Next.js)**: [http://localhost:3000](http://localhost:3000)
 - **Backend API (FastAPI)**: [http://localhost:8000](http://localhost:8000)
+- **API Documentation (Swagger UI)**: [http://localhost:8000/docs](http://localhost:8000/docs)
+- **API Documentation (ReDoc)**: [http://localhost:8000/redoc](http://localhost:8000/redoc)
 
 ### 4. Viewing Logs
 
@@ -59,3 +74,23 @@ docker compose down
 ```
 
 _Note: The database data is persisted in a Docker volume. If you ever need to completely wipe the database and start fresh, you can run `docker compose down -v`._
+
+## Running Tests
+
+### Backend
+
+Run the backend test suite inside the backend container (or a local virtualenv with dependencies installed):
+
+```bash
+docker compose exec backend pytest tests/ -v
+```
+
+### Frontend
+
+Run the frontend test suite from the `frontend/` directory:
+
+```bash
+yarn test:run
+```
+
+Use `yarn test` to run in watch mode during development.
