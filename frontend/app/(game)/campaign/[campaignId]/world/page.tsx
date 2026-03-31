@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { CampaignWorldPageContent } from "./CampaignWorldPageContent";
 
 export const metadata: Metadata = {
-  title: "Campaign World – DnD Frontend",
+  title: "Campaign World – Dungeons and Droids",
   description: "View the world for this campaign.",
 };
 

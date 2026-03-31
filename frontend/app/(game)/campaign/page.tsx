@@ -1,15 +1,9 @@
-import type { Metadata } from "next";
-import { CampaignPageContent } from "./CampaignPageContent";
-
-export const metadata: Metadata = {
-  title: "Create Campaign – DnD Frontend",
-  description: "Create a new DnD campaign.",
-};
+import { redirect } from "next/navigation";
 
 /**
- * Campaign creation page — entry point for the DM to create a new campaign.
- * DM-only: players are blocked at the DmOnlyRoute boundary in CampaignPageContent.
+ * Campaigns are now displayed inline on the dashboard Campaigns tab.
+ * Redirect any direct visits to /campaign back to the dashboard.
  */
-export default function CampaignPage(): React.ReactElement {
-  return <CampaignPageContent />;
+export default function CampaignPage(): never {
+  redirect("/dashboard");
 }

@@ -39,6 +39,13 @@ class RoomORM(Base):
         nullable=True,
         default=None,
     )
+    # Lobby status: "open" | "in_progress" | "closed". Stored as a plain
+    # string for portability — the domain RoomStatus enum handles validation.
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="open")
+    # bcrypt hash of the room password. NULL means the room is public (no password).
+    password_hash: Mapped[str | None] = mapped_column(
+        String, nullable=True, default=None
+    )
 
 
 class RoomPlayerORM(Base):

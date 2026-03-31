@@ -3,6 +3,7 @@
 import Box from "@mui/material/Box";
 import Chip from "@mui/material/Chip";
 import Typography from "@mui/material/Typography";
+import { AppCard } from "@/shared/components/AppCard";
 import type { CampaignFaction } from "@/domains/campaign/types";
 
 /** Props for the FactionCard component. */
@@ -16,31 +17,19 @@ export interface FactionCardProps {
 /**
  * Displays a single campaign faction card with name, goals, and public reputation.
  * When isDM is true, also renders the hidden agenda in a styled DM-only section.
+ * Uses AppCard for consistent theming across card style modes.
  */
 export function FactionCard({ faction, isDM }: FactionCardProps): React.ReactElement {
   return (
-    <Box
-      sx={{
-        p: 2,
-        border: "1px solid",
-        borderColor: "divider",
-        borderRadius: 2,
-        bgcolor: "background.paper",
-        display: "flex",
-        flexDirection: "column",
-        gap: 1,
-      }}
+    <AppCard
+      title={faction.name}
+      chips={[
+        <Chip key="faction" label="Faction" size="small" variant="outlined" />,
+      ]}
     >
-      <Typography variant="subtitle2" fontWeight={600}>
-        {faction.name}
+      <Typography variant="caption" color="text.secondary">
+        {faction.public_reputation}
       </Typography>
-
-      <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", alignItems: "center" }}>
-        <Chip label="Faction" size="small" variant="outlined" />
-        <Typography variant="caption" color="text.secondary">
-          {faction.public_reputation}
-        </Typography>
-      </Box>
 
       <Typography variant="body2" color="text.secondary">
         {faction.goals}
@@ -68,6 +57,6 @@ export function FactionCard({ faction, isDM }: FactionCardProps): React.ReactEle
           </Typography>
         </Box>
       )}
-    </Box>
+    </AppCard>
   );
 }

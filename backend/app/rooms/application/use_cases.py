@@ -8,19 +8,22 @@ on the Room aggregate.
 
 import logging
 import uuid
+from collections.abc import Callable
 from datetime import datetime, timezone
 
 from app.campaigns.domain.repositories import CampaignRepository
-from app.core.exceptions import AuthenticationError, NotFoundError
+from app.core.exceptions import AuthenticationError, ForbiddenError, NotFoundError
 from app.dungeons.domain.repositories import DungeonRepository
-from app.rooms.domain.models import Room, RoomPlayer
+from app.rooms.domain.models import Room, RoomPlayer, RoomStatus
 from app.rooms.domain.repositories import (
     AlreadyInRoomError,
     NotDMError,
+    RoomClosedError,
     RoomFullError,
     RoomNotFoundError,
     RoomPlayerRepository,
     RoomRepository,
+    WrongPasswordError,
 )
 
 logger = logging.getLogger(__name__)
@@ -47,6 +50,7 @@ class CreateRoom:
         max_players: int,
         dungeon_id: uuid.UUID | None = None,
         campaign_id: uuid.UUID | None = None,
+        password_hash: str | None = None,
     ) -> Room:
         logger.debug(
             "CreateRoom: name='%s' dm_id=%s max_players=%d dungeon_id=%s campaign_id=%s",
@@ -62,6 +66,7 @@ class CreateRoom:
             max_players=max_players,
             dungeon_id=dungeon_id,
             campaign_id=campaign_id,
+            password_hash=password_hash,
         )
         self._room_repo.save(room)
         # DM is the first room member.
@@ -232,3 +237,113 @@ class LinkRoomDungeon:
             campaign_id,
         )
         return updated_room
+
+
+class ListRooms:
+    """
+    Returns a list of rooms filtered by status, ordered newest first.
+    Used by the lobby browser so players can see available games.
+    Each result is a tuple of (Room, player_count) to avoid N+1 queries
+    in the caller — the repository fetches counts alongside rooms.
+    """
+
+    def __init__(
+        self,
+        room_repo: RoomRepository,
+        player_repo: RoomPlayerRepository,
+    ) -> None:
+        self._room_repo = room_repo
+        self._player_repo = player_repo
+
+    def execute(self, status: RoomStatus) -> list[tuple[Room, int]]:
+        logger.debug("ListRooms: status=%s", status.value)
+        rooms = self._room_repo.list_by_status(status)
+        # Fetch player counts individually. Acceptable for the expected number
+        # of open rooms (typically < 50). Replace with a JOIN if this becomes slow.
+        results = [(room, self._player_repo.count(room.id)) for room in rooms]
+        logger.info(
+            "ListRooms: returned %d rooms with status=%s", len(results), status.value
+        )
+        return results
+
+
+class JoinRoomById:
+    """
+    Player joins a room via the lobby browser using the room's UUID and a password.
+
+    Unlike JoinRoom (which uses an invite code), this use case enforces:
+      - Only players (not DMs) may join via the lobby.
+      - The room must be in 'open' status.
+      - The room must not be full.
+      - If the room has a password, the supplied password must match.
+
+    verify_password_fn is injected so the use case stays free of bcrypt imports
+    (bcrypt is an infrastructure detail).
+    """
+
+    def __init__(
+        self,
+        room_repo: RoomRepository,
+        player_repo: RoomPlayerRepository,
+        verify_password_fn: Callable[[str, str], bool],
+    ) -> None:
+        self._room_repo = room_repo
+        self._player_repo = player_repo
+        self._verify_password = verify_password_fn
+
+    def execute(
+        self,
+        room_id: uuid.UUID,
+        user_id: uuid.UUID,
+        user_role: str,
+        password: str,
+    ) -> Room:
+        logger.debug(
+            "JoinRoomById: room_id=%s user_id=%s user_role=%s",
+            room_id,
+            user_id,
+            user_role,
+        )
+        room = self._room_repo.get_by_id(room_id)
+        if room is None:
+            raise RoomNotFoundError(f"Room {room_id} not found")
+
+        # Only the player role may join via the lobby (DMs own rooms, not join them).
+        if user_role != "player":
+            raise ForbiddenError("Only players can join rooms via the lobby")
+
+        if room.status == RoomStatus.closed:
+            raise RoomClosedError("This room is no longer accepting players")
+
+        if room.status == RoomStatus.in_progress:
+            raise RoomClosedError("This room is no longer accepting players")
+
+        # Verify password before checking capacity so the error message leaks
+        # no information about whether the room has space.
+        if room.password_hash is not None:
+            if not self._verify_password(password, room.password_hash):
+                raise WrongPasswordError("Incorrect password")
+
+        count = self._player_repo.count(room.id)
+        if not room.can_accept_player(count):
+            raise RoomFullError(
+                f"Room '{room.name}' is full ({count}/{room.max_players})"
+            )
+
+        # Idempotent: return existing membership without error.
+        if self._player_repo.is_member(room.id, user_id):
+            logger.info(
+                "JoinRoomById: user_id=%s already a member of room id=%s",
+                user_id,
+                room.id,
+            )
+            return room
+
+        entry = RoomPlayer(
+            room_id=room.id,
+            user_id=user_id,
+            joined_at=datetime.now(tz=timezone.utc),
+        )
+        self._player_repo.add(entry)
+        logger.info("JoinRoomById: user_id=%s joined room id=%s", user_id, room.id)
+        return room

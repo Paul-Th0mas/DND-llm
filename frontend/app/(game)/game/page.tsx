@@ -3,7 +3,7 @@ import { ProtectedRoute } from "@/shared/components/ProtectedRoute";
 import { GameContent } from "./GameContent";
 
 export const metadata: Metadata = {
-  title: "The Realm – DnD Frontend",
+  title: "The Realm – Dungeons and Droids",
   description: "Your active game session.",
 };
 

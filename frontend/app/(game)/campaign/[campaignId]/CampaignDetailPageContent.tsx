@@ -15,6 +15,7 @@ import { DmOnlyRoute } from "@/shared/components/DmOnlyRoute";
 import { getCampaignById, listCampaignDungeons } from "@/domains/campaign/services/campaign.service";
 import { getWorldById } from "@/domains/world/services/world.service";
 import { StartSessionWizard } from "@/domains/campaign/components/StartSessionWizard";
+import { CampaignPartyRoster } from "@/domains/character/components/CampaignPartyRoster";
 import { ApiError } from "@/lib/api/client";
 import type { CampaignDetail } from "@/domains/campaign/types";
 import type { WorldDetail } from "@/domains/world/types";
@@ -262,6 +263,18 @@ export function CampaignDetailPageContent({
                   </Box>
                 </>
               )}
+
+              {/* Party Roster (US-031) */}
+              <Divider />
+              <Box>
+                <Typography variant="subtitle1" fontWeight={600} gutterBottom>
+                  Party
+                </Typography>
+                <CampaignPartyRoster
+                  campaignId={campaignId}
+                  token={localStorage.getItem("access_token") ?? ""}
+                />
+              </Box>
 
               {/* Past Dungeons */}
               <Divider />

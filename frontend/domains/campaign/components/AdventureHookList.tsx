@@ -3,6 +3,7 @@
 import Box from "@mui/material/Box";
 import Chip from "@mui/material/Chip";
 import Typography from "@mui/material/Typography";
+import { AppCard } from "@/shared/components/AppCard";
 import type { AdventureHook } from "@/domains/campaign/types";
 
 /** Props for the AdventureHookList component. */
@@ -21,7 +22,8 @@ type PillarColor = "error" | "success" | "info";
 
 /**
  * Renders adventure hooks grouped by narrative pillar (Combat, Exploration, Social).
- * Each group has a labelled section header and lists the hooks with a connected NPC reference.
+ * Each hook is displayed as an AppCard with the hook text as children and the
+ * connected NPC reference as the subtitle when present.
  */
 export function AdventureHookList({ hooks }: AdventureHookListProps): React.ReactElement {
   const pillars: Array<"combat" | "exploration" | "social"> = [
@@ -53,23 +55,17 @@ export function AdventureHookList({ hooks }: AdventureHookListProps): React.Reac
             {/* Hooks in this pillar */}
             <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
               {pillarHooks.map((hook, i) => (
-                <Box
+                <AppCard
                   key={i}
-                  sx={{
-                    p: 1.5,
-                    border: "1px solid",
-                    borderColor: "divider",
-                    borderRadius: 1,
-                    bgcolor: "background.paper",
-                  }}
+                  subtitle={
+                    hook.connected_npc
+                      ? `Connected NPC: ${hook.connected_npc}`
+                      : undefined
+                  }
+                  staggerIndex={i}
                 >
                   <Typography variant="body2">{hook.hook}</Typography>
-                  {hook.connected_npc && (
-                    <Typography variant="caption" color="text.disabled" sx={{ mt: 0.5, display: "block" }}>
-                      Connected NPC: {hook.connected_npc}
-                    </Typography>
-                  )}
-                </Box>
+                </AppCard>
               ))}
             </Box>
           </Box>

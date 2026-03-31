@@ -19,3 +19,24 @@ class NotFoundError(DomainError):
 
 class AuthenticationError(DomainError):
     """Raised when authentication fails (bad token, OAuth failure). Maps to HTTP 401."""
+
+
+class ConflictError(DomainError):
+    """
+    Raised when an operation conflicts with existing state (e.g. duplicate).
+    Maps to HTTP 409.
+    """
+
+
+class ForbiddenError(DomainError):
+    """
+    Raised when an authenticated user lacks permission for an action
+    (e.g. wrong password, wrong role). Maps to HTTP 403.
+    """
+
+
+class GoneError(DomainError):
+    """
+    Raised when a resource existed but is no longer available
+    (e.g. a closed room). Maps to HTTP 410.
+    """

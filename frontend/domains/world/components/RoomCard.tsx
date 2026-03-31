@@ -3,6 +3,7 @@
 import Box from "@mui/material/Box";
 import Chip from "@mui/material/Chip";
 import Typography from "@mui/material/Typography";
+import { AppCard } from "@/shared/components/AppCard";
 import type { NarratedRoomResponse, RoomType } from "@/domains/world/types";
 
 /** Color mapping for room type badges. */
@@ -22,38 +23,26 @@ interface RoomCardProps {
 
 /**
  * Displays a single narrated room card with its type badge, name, description,
- * enemy names, NPC names, and any special notes.
+ * enemy names, NPC names, and any special notes. Uses AppCard for consistent
+ * theming across card style modes.
  */
 export function RoomCard({ room }: RoomCardProps): React.ReactElement {
   const chipColor = ROOM_TYPE_COLORS[room.room_type];
 
   return (
-    <Box
-      sx={{
-        p: 2,
-        border: "1px solid",
-        borderColor: "divider",
-        borderRadius: 2,
-        bgcolor: "background.paper",
-        display: "flex",
-        flexDirection: "column",
-        gap: 1,
-      }}
-    >
-      {/* Header: room type badge and name */}
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+    <AppCard
+      title={room.name}
+      chips={[
         <Chip
+          key="type"
           label={room.room_type}
           size="small"
           color={chipColor}
           variant="filled"
           sx={{ fontWeight: 700, fontSize: "0.65rem" }}
-        />
-        <Typography variant="subtitle2" fontWeight={600}>
-          {room.name}
-        </Typography>
-      </Box>
-
+        />,
+      ]}
+    >
       {/* Description */}
       <Typography variant="body2" color="text.secondary">
         {room.description}
@@ -93,6 +82,6 @@ export function RoomCard({ room }: RoomCardProps): React.ReactElement {
           {room.special_notes}
         </Typography>
       )}
-    </Box>
+    </AppCard>
   );
 }

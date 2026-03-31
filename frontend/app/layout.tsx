@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, MedievalSharp, Caudex } from "next/font/google";
 import { ThemeRegistry } from "@/lib/mui/ThemeRegistry";
 import { AuthProvider } from "@/domains/auth/components/AuthProvider";
 import "./globals.css";
@@ -16,8 +16,24 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+// MedievalSharp — used for scroll card titles and headings.
+// Exposed as CSS variable --font-medieval-sharp for use in ScrollCard.
+const medievalSharp = MedievalSharp({
+  variable: "--font-medieval-sharp",
+  subsets: ["latin"],
+  weight: "400",
+});
+
+// Caudex — used for body text inside scroll cards.
+// Exposed as CSS variable --font-caudex for use in ScrollCard.
+const caudex = Caudex({
+  variable: "--font-caudex",
+  subsets: ["latin"],
+  weight: ["400", "700"],
+});
+
 export const metadata: Metadata = {
-  title: "DnD Frontend",
+  title: "Dungeons and Droids",
   description: "Domain Driven Design Next.js application",
 };
 
@@ -33,7 +49,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} ${medievalSharp.variable} ${caudex.variable} antialiased`}
+      >
         <ThemeRegistry>
           <AuthProvider>{children}</AuthProvider>
         </ThemeRegistry>

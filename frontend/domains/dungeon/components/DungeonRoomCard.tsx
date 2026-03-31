@@ -3,10 +3,10 @@
 import Box from "@mui/material/Box";
 import Chip from "@mui/material/Chip";
 import Typography from "@mui/material/Typography";
+import { AppCard } from "@/shared/components/AppCard";
 import type { DungeonRoomResponse, RoomType } from "../types";
 
 // Colour mapping for each room type badge.
-// Using MUI colour tokens that align with the project palette.
 const ROOM_TYPE_COLORS: Record<
   RoomType,
   "error" | "success" | "warning" | "info" | "default" | "primary"
@@ -33,45 +33,33 @@ function toLabel(value: string): string {
 /** Props for the DungeonRoomCard component. */
 interface DungeonRoomCardProps {
   readonly room: DungeonRoomResponse;
+  /** Optional stagger index for the card entrance animation. */
+  readonly index?: number;
 }
 
 /**
  * Displays a single generated dungeon room with its type badge, name,
  * description, enemy list, NPC list, and any special notes.
+ * Uses AppCard for consistent theming across card style modes.
  * Used inside GeneratedDungeonView as a card per room.
  */
-export function DungeonRoomCard({ room }: DungeonRoomCardProps): React.ReactElement {
+export function DungeonRoomCard({ room, index = 0 }: DungeonRoomCardProps): React.ReactElement {
   const badgeColor = ROOM_TYPE_COLORS[room.room_type] ?? "default";
 
   return (
-    <Box
-      sx={{
-        p: 2,
-        border: "1px solid",
-        borderColor: "divider",
-        borderRadius: 2,
-        bgcolor: "background.paper",
-        display: "flex",
-        flexDirection: "column",
-        gap: 1,
-      }}
-    >
-      {/* Room header: index, type badge, name */}
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
-        <Typography variant="caption" color="text.secondary" sx={{ minWidth: 24 }}>
-          {room.index + 1}.
-        </Typography>
+    <AppCard
+      title={`${room.index + 1}. ${room.name}`}
+      chips={[
         <Chip
+          key="type"
           label={toLabel(room.room_type)}
           size="small"
           color={badgeColor}
           sx={{ fontWeight: 600, fontSize: "0.7rem" }}
-        />
-        <Typography variant="subtitle2" fontWeight={600}>
-          {room.name}
-        </Typography>
-      </Box>
-
+        />,
+      ]}
+      staggerIndex={index}
+    >
       <Typography variant="body2" color="text.secondary">
         {room.description}
       </Typography>
@@ -110,6 +98,6 @@ export function DungeonRoomCard({ room }: DungeonRoomCardProps): React.ReactElem
           {room.special_notes}
         </Typography>
       )}
-    </Box>
+    </AppCard>
   );
 }

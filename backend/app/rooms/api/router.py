@@ -24,8 +24,12 @@ from app.rooms.api.dependencies import (
 from app.rooms.application.schemas import (
     CreateRoomRequest,
     CreateRoomResponse,
+    JoinRoomByIdRequest,
+    JoinRoomByIdResponse,
     JoinRoomResponse,
     LinkRoomDungeonRequest,
+    LobbyListResponse,
+    LobbyRoomItem,
     RoomResponse,
 )
 from app.rooms.application.use_cases import (
@@ -33,8 +37,12 @@ from app.rooms.application.use_cases import (
     DeleteRoom,
     GetRoom,
     JoinRoom,
+    JoinRoomById,
     LinkRoomDungeon,
+    ListRooms,
 )
+from app.rooms.domain.models import RoomStatus
+from app.users.infrastructure.password import hash_password, verify_password
 from app.rooms.infrastructure.repositories import (
     SqlAlchemyRoomPlayerRepository,
     SqlAlchemyRoomRepository,
@@ -89,6 +97,8 @@ def create_room(
     Requires the caller's JWT to have role='dm'.
     """
     logger.info("create_room: dm_id=%s name='%s'", dm.id, body.name)
+    # Hash the password in the API layer — hashing is an infrastructure concern.
+    password_hash = hash_password(body.password) if body.password else None
     use_case = CreateRoom(room_repo=room_repo, player_repo=player_repo)
     room = use_case.execute(
         name=body.name,
@@ -96,6 +106,7 @@ def create_room(
         max_players=body.max_players,
         dungeon_id=body.dungeon_id,
         campaign_id=body.campaign_id,
+        password_hash=password_hash,
     )
     db.commit()
 
@@ -172,6 +183,89 @@ def delete_room(
     use_case = DeleteRoom(room_repo=room_repo)
     use_case.execute(room_id=room_id, requesting_user_id=dm.id)
     db.commit()
+
+
+@rooms_router.get("", response_model=LobbyListResponse)
+def list_rooms(
+    status: str = "open",
+    current_user: User = Depends(get_current_user),
+    room_repo: SqlAlchemyRoomRepository = Depends(get_room_repository),
+    player_repo: SqlAlchemyRoomPlayerRepository = Depends(get_room_player_repository),
+) -> LobbyListResponse:
+    """
+    Returns the lobby listing filtered by status (default: 'open').
+    Any authenticated user may browse the lobby.
+    """
+    logger.debug("list_rooms: user_id=%s status=%s", current_user.id, status)
+    try:
+        room_status = RoomStatus(status)
+    except ValueError:
+        room_status = RoomStatus.open
+
+    use_case = ListRooms(room_repo=room_repo, player_repo=player_repo)
+    results = use_case.execute(room_status)
+
+    items = [
+        LobbyRoomItem(
+            id=room.id,
+            name=room.name,
+            status=room.status.value,
+            player_count=count,
+            max_players=room.max_players,
+            has_password=room.password_hash is not None,
+            created_at=room.created_at,
+        )
+        for room, count in results
+    ]
+    return LobbyListResponse(rooms=items)
+
+
+@rooms_router.post("/{room_id}/join", response_model=JoinRoomByIdResponse)
+def join_room_by_id(
+    room_id: uuid.UUID,
+    body: JoinRoomByIdRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    room_repo: SqlAlchemyRoomRepository = Depends(get_room_repository),
+    player_repo: SqlAlchemyRoomPlayerRepository = Depends(get_room_player_repository),
+) -> JoinRoomByIdResponse:
+    """
+    Player joins a room via the lobby browser using the room's UUID and a password.
+    Returns the room details plus a room-scoped JWT for WebSocket use.
+    """
+    logger.info(
+        "join_room_by_id: user_id=%s room_id=%s role=%s",
+        current_user.id,
+        room_id,
+        current_user.role.value,
+    )
+    use_case = JoinRoomById(
+        room_repo=room_repo,
+        player_repo=player_repo,
+        verify_password_fn=verify_password,
+    )
+    room = use_case.execute(
+        room_id=room_id,
+        user_id=current_user.id,
+        user_role=current_user.role.value,
+        password=body.password,
+    )
+    db.commit()
+
+    room_token = create_room_token(
+        user_id=current_user.id,
+        room_id=room.id,
+        role=current_user.role.value,
+        expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
+    )
+    players = player_repo.get_by_room(room.id)
+    player_ids = [p.user_id for p in players]
+    response = _room_response(room, player_ids)
+    return JoinRoomByIdResponse(
+        room=response,
+        room_token=room_token,
+        message=f"Successfully joined room '{room.name}'",
+    )
 
 
 @rooms_router.patch("/{room_id}/link", response_model=RoomResponse)

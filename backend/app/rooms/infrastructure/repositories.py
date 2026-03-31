@@ -4,7 +4,7 @@ import uuid
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from app.rooms.domain.models import InviteCode, Room, RoomPlayer
+from app.rooms.domain.models import InviteCode, Room, RoomPlayer, RoomStatus
 from app.rooms.domain.repositories import RoomPlayerRepository, RoomRepository
 from app.rooms.infrastructure.orm_models import RoomORM, RoomPlayerORM
 
@@ -38,9 +38,22 @@ class SqlAlchemyRoomRepository(RoomRepository):
             is_active=room.is_active,
             created_at=room.created_at,
             dungeon_id=room.dungeon_id,
+            status=room.status.value,
+            password_hash=room.password_hash,
         )
         self._session.merge(orm)
         self._session.flush()
+
+    def list_by_status(self, status: RoomStatus) -> list[Room]:
+        """Returns all rooms with the given status, newest first."""
+        logger.debug("list_by_status: status=%s", status.value)
+        stmt = (
+            select(RoomORM)
+            .where(RoomORM.status == status.value)
+            .order_by(RoomORM.created_at.desc())
+        )
+        rows = self._session.execute(stmt).scalars().all()
+        return [self._to_domain(row) for row in rows]
 
     def get_by_dungeon_id(self, dungeon_id: uuid.UUID) -> Room | None:
         """Return the most recently created room for this dungeon, or None."""
@@ -90,6 +103,11 @@ class SqlAlchemyRoomRepository(RoomRepository):
 
     @staticmethod
     def _to_domain(orm: RoomORM) -> Room:
+        # Guard against legacy rows that pre-date the status column migration.
+        try:
+            status = RoomStatus(orm.status)
+        except ValueError:
+            status = RoomStatus.open
         return Room(
             id=orm.id,
             name=orm.name,
@@ -100,6 +118,8 @@ class SqlAlchemyRoomRepository(RoomRepository):
             created_at=orm.created_at,
             dungeon_id=orm.dungeon_id,
             campaign_id=orm.campaign_id,
+            status=status,
+            password_hash=orm.password_hash,
         )
 
 

@@ -1,3 +1,36 @@
+/** Status values for a room in the lobby browser. */
+export type RoomStatus = "open" | "in_progress" | "closed";
+
+/**
+ * A summarised room entry shown in the lobby browser table.
+ * Returned by GET /api/v1/rooms.
+ */
+export interface LobbyRoom {
+  readonly id: string;
+  readonly name: string;
+  readonly status: RoomStatus;
+  readonly player_count: number;
+  readonly max_players: number;
+  /** True when the room requires a password to join. */
+  readonly has_password: boolean;
+  readonly created_at: string;
+}
+
+/** Response shape for the lobby listing endpoint. */
+export interface LobbyListResponse {
+  readonly rooms: readonly LobbyRoom[];
+}
+
+/**
+ * Response shape returned when a player joins a room via the lobby browser.
+ * Returned by POST /api/v1/rooms/{roomId}/join.
+ */
+export interface JoinRoomByIdResponse {
+  readonly room: Room;
+  readonly room_token: string;
+  readonly message: string;
+}
+
 /** A game room managed by a Dungeon Master. */
 export interface Room {
   readonly id: string;

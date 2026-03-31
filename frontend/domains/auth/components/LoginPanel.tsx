@@ -511,7 +511,7 @@ function SignUpForm({ onLoginWithGoogle }: FormProps): React.ReactElement {
 }
 
 /**
- * Full-screen authentication panel for the DnD Frontend.
+ * Full-screen authentication panel for the Dungeons and Droids.
  * Split layout: a dark atmospheric DnD-themed panel on the left and
  * a clean tab-based sign-in / sign-up form panel on the right.
  * The left panel is hidden on mobile — the form takes full width instead.

@@ -1,5 +1,10 @@
 import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api/client";
-import type { Room, RoomResponse } from "@/domains/room/types";
+import type {
+  JoinRoomByIdResponse,
+  LobbyRoom,
+  Room,
+  RoomResponse,
+} from "@/domains/room/types";
 
 /**
  * Builds the Authorization header object for bearer-token requests.
@@ -105,6 +110,44 @@ export async function joinRoom(
   return apiPost<RoomResponse>(
     `/api/v1/rooms/join/${inviteCode}`,
     {},
+    { headers: authHeaders(token) }
+  );
+}
+
+/**
+ * Fetches the list of rooms from the lobby browser.
+ * Calls GET /api/v1/rooms?status={status}.
+ * @param token - The JWT access token of the authenticated user.
+ * @param status - Filter by room status (default: "open").
+ * @returns A promise resolving to an array of LobbyRoom summaries.
+ */
+export async function listLobbies(
+  token: string,
+  status: string = "open"
+): Promise<LobbyRoom[]> {
+  const data = await apiGet<{ rooms: LobbyRoom[] }>(
+    `/api/v1/rooms?status=${status}`,
+    { headers: authHeaders(token) }
+  );
+  return data.rooms;
+}
+
+/**
+ * Joins a room via the lobby browser using the room's UUID and a password.
+ * Calls POST /api/v1/rooms/{roomId}/join.
+ * @param roomId - The UUID of the room to join.
+ * @param password - The room password (empty string for password-free rooms).
+ * @param token - The JWT access token of the authenticated player.
+ * @returns A promise resolving to the joined room, a room-scoped token, and a message.
+ */
+export async function joinRoomById(
+  roomId: string,
+  password: string,
+  token: string
+): Promise<JoinRoomByIdResponse> {
+  return apiPost<JoinRoomByIdResponse>(
+    `/api/v1/rooms/${roomId}/join`,
+    { password },
     { headers: authHeaders(token) }
   );
 }

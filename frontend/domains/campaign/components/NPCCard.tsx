@@ -3,6 +3,7 @@
 import Box from "@mui/material/Box";
 import Chip from "@mui/material/Chip";
 import Typography from "@mui/material/Typography";
+import { AppCard } from "@/shared/components/AppCard";
 import type { CampaignNPC } from "@/domains/campaign/types";
 
 /** Props for the NPCCard component. */
@@ -14,31 +15,19 @@ export interface NPCCardProps {
 }
 
 /**
- * Displays a single campaign NPC card with name, species, role, personality, and stat block reference.
- * When isDM is true, also renders the NPC's secret in a styled DM-only section.
+ * Displays a single campaign NPC card with name, species chip, role chip,
+ * personality, and stat block reference. When isDM is true, also renders the
+ * NPC's secret in a styled DM-only section. Uses AppCard for consistent theming.
  */
 export function NPCCard({ npc, isDM }: NPCCardProps): React.ReactElement {
   return (
-    <Box
-      sx={{
-        p: 2,
-        border: "1px solid",
-        borderColor: "divider",
-        borderRadius: 2,
-        bgcolor: "background.paper",
-        display: "flex",
-        flexDirection: "column",
-        gap: 1,
-      }}
+    <AppCard
+      title={npc.name}
+      chips={[
+        <Chip key="species" label={npc.species} size="small" variant="outlined" />,
+        <Chip key="role" label={npc.role} size="small" color="primary" variant="outlined" />,
+      ]}
     >
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
-        <Typography variant="subtitle2" fontWeight={600}>
-          {npc.name}
-        </Typography>
-        <Chip label={npc.species} size="small" variant="outlined" />
-        <Chip label={npc.role} size="small" color="primary" variant="outlined" />
-      </Box>
-
       <Typography variant="body2" color="text.secondary">
         {npc.personality}
       </Typography>
@@ -71,6 +60,6 @@ export function NPCCard({ npc, isDM }: NPCCardProps): React.ReactElement {
           </Typography>
         </Box>
       )}
-    </Box>
+    </AppCard>
   );
 }

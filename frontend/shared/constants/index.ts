@@ -1,5 +1,5 @@
 // Application display name shown in metadata and UI headings.
-export const APP_NAME = "DnD Frontend" as const;
+export const APP_NAME = "Dungeons and Droids" as const;
 
 // Default number of items to show per paginated list.
 export const DEFAULT_PAGE_SIZE = 20 as const;

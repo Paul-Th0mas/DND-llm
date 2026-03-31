@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 /**
- * Next.js configuration for the DnD Frontend application.
+ * Next.js configuration for the Dungeons and Droids application.
  * standalone output bundles only the required files for production,
  * which significantly reduces the Docker image size.
  */

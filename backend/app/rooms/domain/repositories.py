@@ -8,8 +8,14 @@ layer provides the concrete SQLAlchemy implementations.
 import uuid
 from abc import ABC, abstractmethod
 
-from app.core.exceptions import DomainError, NotFoundError
-from app.rooms.domain.models import Room, RoomPlayer
+from app.core.exceptions import (
+    ConflictError,
+    DomainError,
+    ForbiddenError,
+    GoneError,
+    NotFoundError,
+)
+from app.rooms.domain.models import Room, RoomPlayer, RoomStatus
 
 
 # ---------------------------------------------------------------------------
@@ -22,8 +28,8 @@ class RoomNotFoundError(NotFoundError):
     """Raised when a requested room does not exist."""
 
 
-class RoomFullError(DomainError):
-    """Raised when a room has reached its max_players limit."""
+class RoomFullError(ConflictError):
+    """Raised when a room has reached its max_players limit. Maps to HTTP 409."""
 
 
 class NotDMError(DomainError):
@@ -32,6 +38,14 @@ class NotDMError(DomainError):
 
 class AlreadyInRoomError(DomainError):
     """Raised when a user tries to join a room they are already in."""
+
+
+class WrongPasswordError(ForbiddenError):
+    """Raised when a player supplies an incorrect room password. Maps to HTTP 403."""
+
+
+class RoomClosedError(GoneError):
+    """Raised when a player tries to join a room that is no longer open. Maps to HTTP 410."""
 
 
 # ---------------------------------------------------------------------------
@@ -69,6 +83,14 @@ class RoomRepository(ABC):
 
     @abstractmethod
     def delete(self, room_id: uuid.UUID) -> None: ...
+
+    @abstractmethod
+    def list_by_status(self, status: RoomStatus) -> list[Room]:
+        """
+        Returns all rooms with the given status, ordered by created_at descending.
+        Used by the lobby browser to display open rooms to players.
+        """
+        ...
 
 
 class RoomPlayerRepository(ABC):

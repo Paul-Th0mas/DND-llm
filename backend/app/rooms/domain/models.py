@@ -6,6 +6,7 @@ membership. InviteCode is a value object wrapping the short, URL-safe
 code players use to join a room.
 """
 
+import enum
 import logging
 import secrets
 import string
@@ -20,6 +21,20 @@ logger = logging.getLogger(__name__)
 
 _INVITE_ALPHABET = string.ascii_uppercase + string.digits
 _INVITE_LENGTH = 8
+
+
+class RoomStatus(enum.Enum):
+    """
+    Lifecycle state of a Room.
+
+    open        — accepting new players via the lobby browser.
+    in_progress — game has started; no new players may join.
+    closed      — room has been shut down permanently.
+    """
+
+    open = "open"
+    in_progress = "in_progress"
+    closed = "closed"
 
 
 # ---------------------------------------------------------------------------
@@ -95,6 +110,10 @@ class Room:
     # Optional link to a Campaign. Set when the DM links the room to a
     # campaign for narrative context (world lore, tone, themes).
     campaign_id: uuid.UUID | None = None
+    # Lobby-visible status used by players browsing open games.
+    status: RoomStatus = field(default=RoomStatus.open)
+    # bcrypt hash of the room password. None means the room is public.
+    password_hash: str | None = None
 
     @classmethod
     def create(
@@ -104,6 +123,7 @@ class Room:
         max_players: int,
         dungeon_id: uuid.UUID | None = None,
         campaign_id: uuid.UUID | None = None,
+        password_hash: str | None = None,
     ) -> tuple["Room", RoomCreated]:
         """
         Factory method — creates a new Room and returns it with its domain event.
@@ -125,6 +145,8 @@ class Room:
             created_at=now,
             dungeon_id=dungeon_id,
             campaign_id=campaign_id,
+            status=RoomStatus.open,
+            password_hash=password_hash,
         )
         logger.info("Room.create: room id=%s name='%s' dm_id=%s", room_id, name, dm_id)
         event = RoomCreated(room_id=room_id, dm_id=dm_id, occurred_at=now)
@@ -138,6 +160,7 @@ class Room:
         if not self.is_active:
             raise DomainError("Room is already closed")
         self.is_active = False
+        self.status = RoomStatus.closed
         logger.info("Room.close: room id=%s closed", self.id)
         return RoomClosed(room_id=self.id, occurred_at=datetime.now(tz=timezone.utc))
 

@@ -16,3 +16,9 @@ from app.campaigns.infrastructure import (
     orm_models as _campaigns_orm,
 )  # noqa: F401, E402
 from app.dungeons.infrastructure import orm_models as _dungeons_orm  # noqa: F401, E402
+from app.character_options.infrastructure import (
+    orm_models as _character_options_orm,
+)  # noqa: F401, E402
+from app.characters.infrastructure import (
+    orm_models as _characters_orm,
+)  # noqa: F401, E402
