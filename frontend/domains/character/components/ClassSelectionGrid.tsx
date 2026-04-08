@@ -1,13 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Chip from "@mui/material/Chip";
 import Skeleton from "@mui/material/Skeleton";
 import Typography from "@mui/material/Typography";
-import { AppCard } from "@/shared/components/AppCard";
 import { getCharacterClasses } from "@/domains/character/services/character.service";
 import { ApiError } from "@/lib/api/client";
 import type { CharacterClass } from "@/domains/character/types";
@@ -26,8 +25,8 @@ export interface ClassSelectionGridProps {
  * Displays a grid of selectable character class cards filtered by world theme.
  * Handles loading, empty, and error states as per US-026 acceptance criteria.
  * Each card shows: display_name, hit_die as "d{n}", primary_ability,
- * and a "Spellcaster" chip if the class has a spellcasting_ability.
- * Uses AppCard with onClick and selected props for interactive selection.
+ * and a "Spellcaster" badge if the class has a spellcasting_ability.
+ * Uses Modern Scriptorium visual design (US-060).
  */
 export function ClassSelectionGrid({
   worldTheme,
@@ -67,9 +66,14 @@ export function ClassSelectionGrid({
 
   if (isLoading) {
     return (
-      <Box className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+      <Box className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {Array.from({ length: 6 }).map((_, i) => (
-          <Skeleton key={i} variant="rectangular" height={140} sx={{ borderRadius: 2 }} />
+          <Skeleton
+            key={i}
+            variant="rectangular"
+            height={288}
+            sx={{ borderRadius: "0.75rem", bgcolor: "#fdf2df" }}
+          />
         ))}
       </Box>
     );
@@ -107,54 +111,216 @@ export function ClassSelectionGrid({
   }
 
   return (
-    <Box className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-      {classes.map((cls, index) => {
-        const chips = [
-          <Chip
-            key="hitdie"
-            label={`d${cls.hit_die}`}
-            size="small"
-            variant="outlined"
-            sx={{ fontSize: "0.7rem" }}
-          />,
-          <Chip
-            key="ability"
-            label={cls.primary_ability}
-            size="small"
-            variant="outlined"
-            sx={{ fontSize: "0.7rem" }}
-          />,
-        ];
+    <Box>
+      {/* Hero header */}
+      <Box sx={{ mb: 6 }}>
+        <Typography
+          component="h2"
+          sx={{
+            fontFamily: "var(--font-newsreader), serif",
+            fontWeight: 800,
+            fontSize: { xs: "2.75rem", md: "3.75rem" },
+            color: "#3a311b",
+            lineHeight: 1.1,
+            mb: 1.5,
+          }}
+        >
+          Choose Your Path
+        </Typography>
+        <Typography
+          sx={{
+            fontFamily: "var(--font-work-sans), sans-serif",
+            fontSize: "1.125rem",
+            color: "#695e45",
+            maxWidth: "42rem",
+          }}
+        >
+          The stars align and your destiny beckons. Select a class to define
+          your role in the chronicles yet to be written.
+        </Typography>
+      </Box>
 
-        // Spellcaster chip — only added when a spellcasting ability exists.
-        if (cls.spellcasting_ability !== null) {
-          chips.push(
-            <Chip
-              key="spellcaster"
-              label="Spellcaster"
-              size="small"
-              sx={{
-                bgcolor: "#a07d60",
-                color: "#F9F8F6",
-                fontWeight: 600,
-                fontSize: "0.65rem",
-                height: 20,
+      {/* Class card grid */}
+      <Box className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        {classes.map((cls) => {
+          const isSelected = cls.id === selectedClassId;
+
+          return (
+            <div
+              key={cls.id}
+              onClick={() => onSelect(cls.id)}
+              className="group relative overflow-hidden rounded-xl transition-all duration-300 hover:scale-[1.02] cursor-pointer"
+              style={{
+                backgroundColor: "#fdf2df",
+                boxShadow: isSelected
+                  ? "0 0 0 2px rgba(114,90,66,0.2)"
+                  : "none",
+                outline: isSelected ? "2px solid rgba(114,90,66,0.2)" : "none",
               }}
-            />
-          );
-        }
+            >
+              {/* Image area */}
+              <div className="relative overflow-hidden h-48">
+                {/* Spellcaster badge — shown only when class has a spellcasting ability */}
+                {cls.spellcasting_ability !== null && (
+                  <span
+                    className="absolute top-3 left-3 z-10 text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-full"
+                    style={{
+                      background: "linear-gradient(135deg, #725a42 0%, #fedcbe 100%)",
+                      color: "#fff6f1",
+                    }}
+                  >
+                    Spellcaster
+                  </span>
+                )}
 
-        return (
-          <AppCard
-            key={cls.id}
-            title={cls.display_name}
-            chips={chips}
-            onClick={() => onSelect(cls.id)}
-            selected={cls.id === selectedClassId}
-            staggerIndex={index}
-          />
-        );
-      })}
+                <Image
+                  src="/character-placeholder.png"
+                  alt={cls.display_name}
+                  fill
+                  className="object-cover transition-transform duration-500 group-hover:scale-110"
+                />
+
+                {/* Gradient overlay fading into the card background */}
+                <div
+                  className="absolute inset-0"
+                  style={{
+                    background: "linear-gradient(to top, #fdf2df 0%, transparent 60%)",
+                  }}
+                />
+              </div>
+
+              {/* Card body */}
+              <div className="p-6">
+                {/* Row 1: class name + icon */}
+                <div className="flex items-center justify-between mb-4">
+                  <Typography
+                    component="h3"
+                    sx={{
+                      fontFamily: "var(--font-newsreader), serif",
+                      fontWeight: 700,
+                      fontSize: "1.875rem",
+                      color: "#725a42",
+                      lineHeight: 1,
+                    }}
+                  >
+                    {cls.display_name}
+                  </Typography>
+                  <span
+                    className="material-symbols-outlined"
+                    style={{ fontSize: "2rem", color: "#725a42" }}
+                  >
+                    auto_awesome
+                  </span>
+                </div>
+
+                {/* Row 2: Hit Die + Primary Stat */}
+                <div className="flex gap-4 mb-4">
+                  <div>
+                    <p
+                      style={{
+                        fontSize: "10px",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.1em",
+                        color: "#86795e",
+                        marginBottom: "2px",
+                      }}
+                    >
+                      Hit Die
+                    </p>
+                    <Typography
+                      sx={{
+                        fontFamily: "var(--font-newsreader), serif",
+                        fontWeight: 700,
+                        fontSize: "1.125rem",
+                        color: "#3a311b",
+                      }}
+                    >
+                      d{cls.hit_die}
+                    </Typography>
+                  </div>
+
+                  {/* Left-border divider on second col */}
+                  <div
+                    style={{
+                      borderLeft: "1px solid #bfb193",
+                      paddingLeft: "1rem",
+                    }}
+                  >
+                    <p
+                      style={{
+                        fontSize: "10px",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.1em",
+                        color: "#86795e",
+                        marginBottom: "2px",
+                      }}
+                    >
+                      Primary Stat
+                    </p>
+                    <Typography
+                      sx={{
+                        fontFamily: "var(--font-newsreader), serif",
+                        fontWeight: 700,
+                        fontSize: "1.125rem",
+                        color: "#6c5c4d",
+                      }}
+                    >
+                      {cls.primary_ability}
+                    </Typography>
+                  </div>
+                </div>
+
+                {/* Row 3: description placeholder */}
+                <p
+                  className="mb-5"
+                  style={{
+                    fontStyle: "italic",
+                    fontSize: "0.875rem",
+                    color: "#695e45",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  A formidable archetype wielding their talents in service of the realm.
+                </p>
+
+                {/* Row 4: action button */}
+                {isSelected ? (
+                  <button
+                    type="button"
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-full py-2 font-bold text-[10px] uppercase tracking-widest rounded transition-all"
+                    style={{
+                      background: "linear-gradient(135deg, #725a42 0%, #fedcbe 100%)",
+                      color: "#fff6f1",
+                      border: "none",
+                      cursor: "default",
+                    }}
+                  >
+                    Current Choice
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSelect(cls.id);
+                    }}
+                    className="w-full py-2 font-bold text-[10px] uppercase tracking-widest rounded transition-all hover:bg-[#f5e7cb] hover:text-[#725a42]"
+                    style={{
+                      border: "1px solid #bfb193",
+                      color: "#86795e",
+                      background: "transparent",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Inscribe Destiny
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </Box>
     </Box>
   );
 }

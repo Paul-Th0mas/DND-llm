@@ -216,20 +216,21 @@ export function CampaignDetailPageContent({
                 )}
               </Box>
 
-              <Divider />
-
               {/* Themes */}
               {campaign.themes.length > 0 && (
-                <Box>
-                  <Typography variant="subtitle1" fontWeight={600} gutterBottom>
-                    Themes
-                  </Typography>
-                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-                    {campaign.themes.map((theme) => (
-                      <Chip key={theme} label={theme} size="small" variant="outlined" />
-                    ))}
+                <>
+                  <Divider />
+                  <Box>
+                    <Typography variant="subtitle1" fontWeight={600} gutterBottom>
+                      Themes
+                    </Typography>
+                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+                      {campaign.themes.map((theme) => (
+                        <Chip key={theme} label={theme} size="small" variant="outlined" />
+                      ))}
+                    </Box>
                   </Box>
-                </Box>
+                </>
               )}
 
               {/* Content Boundaries */}

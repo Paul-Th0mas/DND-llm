@@ -127,7 +127,7 @@ export function CharacterSheetPageContent({
         </Box>
 
         {/* Content */}
-        <Box sx={{ px: { xs: 3, sm: 6 }, py: 4, maxWidth: 800, mx: "auto" }}>
+        <Box sx={{ px: { xs: 2, sm: 4 }, py: 4, maxWidth: 1100, mx: "auto" }}>
           {isLoading && (
             <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
               <Skeleton variant="text" width="40%" height={48} />

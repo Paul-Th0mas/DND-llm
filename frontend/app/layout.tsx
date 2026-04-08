@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, MedievalSharp, Caudex } from "next/font/google";
+import { Geist, Geist_Mono, MedievalSharp, Caudex, Newsreader, Work_Sans } from "next/font/google";
 import { ThemeRegistry } from "@/lib/mui/ThemeRegistry";
 import { AuthProvider } from "@/domains/auth/components/AuthProvider";
 import "./globals.css";
@@ -32,6 +32,25 @@ const caudex = Caudex({
   weight: ["400", "700"],
 });
 
+// Newsreader — serif used for editorial headings in the "Modern Scriptorium" design.
+// Exposed as CSS variable --font-newsreader.
+const newsreader = Newsreader({
+  variable: "--font-newsreader",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  style: ["normal", "italic"],
+  display: "swap",
+});
+
+// Work Sans — clean sans-serif used for all UI labels and body text.
+// Exposed as CSS variable --font-work-sans.
+const workSans = Work_Sans({
+  variable: "--font-work-sans",
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
+  display: "swap",
+});
+
 export const metadata: Metadata = {
   title: "Dungeons and Droids",
   description: "Domain Driven Design Next.js application",
@@ -50,7 +69,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} ${medievalSharp.variable} ${caudex.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${medievalSharp.variable} ${caudex.variable} ${newsreader.variable} ${workSans.variable} antialiased`}
       >
         <ThemeRegistry>
           <AuthProvider>{children}</AuthProvider>

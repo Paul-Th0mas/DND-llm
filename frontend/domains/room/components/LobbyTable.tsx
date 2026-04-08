@@ -15,6 +15,7 @@ import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import Typography from "@mui/material/Typography";
 import LockIcon from "@mui/icons-material/Lock";
+import LockOpenIcon from "@mui/icons-material/LockOpen";
 import { listLobbies } from "@/domains/room/services/room.service";
 import { JoinRoomDialog } from "./JoinRoomDialog";
 import type { LobbyRoom } from "@/domains/room/types";
@@ -25,13 +26,6 @@ export interface LobbyTableProps {
   readonly token: string;
 }
 
-// Human-readable labels for each room status value.
-const STATUS_LABELS: Readonly<Record<string, string>> = {
-  open: "Open",
-  in_progress: "In Progress",
-  closed: "Closed",
-} as const;
-
 // Toast messages keyed by HTTP status code returned from the join endpoint.
 const JOIN_ERROR_MESSAGES: Readonly<Record<number, string>> = {
   404: "This room no longer exists.",
@@ -39,16 +33,36 @@ const JOIN_ERROR_MESSAGES: Readonly<Record<number, string>> = {
   410: "This room is no longer accepting players.",
 } as const;
 
+// Status badge config — maps backend status values to display labels and colors.
+const STATUS_CONFIG: Readonly<
+  Record<string, { label: string; bg: string; color: string }>
+> = {
+  open: { label: "In Lobby", bg: "#fbd495", color: "#624816" },
+  in_progress: { label: "In Combat", bg: "#fedcbe", color: "#654d37" },
+  closed: { label: "Closed", bg: "#bfb193", color: "#3a311b" },
+} as const;
+
 /**
- * Displays a table of open game lobbies fetched from GET /api/v1/rooms.
- * Players click "Join" on a row to open the JoinRoomDialog.
+ * Determines whether a room is full based on player count.
+ * Full rooms get a special "Full" badge and a disabled Join button.
+ * @param room - The lobby room to check.
+ * @returns True if the room has no available player slots.
+ */
+function isRoomFull(room: LobbyRoom): boolean {
+  return room.player_count >= room.max_players;
+}
+
+/**
+ * Displays the open game lobbies table styled as a Modern Scriptorium registry.
+ * Fetches GET /api/v1/rooms?status=open on mount, sorted newest first.
  *
- * Implements US-032 acceptance criteria:
- *   - Fetches GET /api/v1/rooms?status=open on mount, sorted newest first.
- *   - Loading skeleton while fetching.
- *   - Empty state when no open lobbies exist.
- *   - Error banner with retry on API failure.
- *   - Toast notifications for 404 / 409 / 410 outcomes from JoinRoomDialog.
+ * Visual design:
+ *   - surface-container-low container, no border lines.
+ *   - Table header in surface-container-high with uppercase tracking-widest labels.
+ *   - Alternating row tints; hover lifts row to surface-container-highest.
+ *   - Status badges: "In Lobby" (amber), "In Combat" (parchment), "Full" (muted).
+ *   - Lock icon in primary for password rooms; open-lock in outline-variant otherwise.
+ *   - Join button: gradient from primary to primary-dim. Disabled when room is full.
  */
 export function LobbyTable({ token }: LobbyTableProps): React.ReactElement {
   const [rooms, setRooms] = useState<readonly LobbyRoom[]>([]);
@@ -94,7 +108,7 @@ export function LobbyTable({ token }: LobbyTableProps): React.ReactElement {
     <Box>
       {/* Error banner with retry button */}
       {!isLoading && error !== null && (
-        <Box sx={{ mb: 2, display: "flex", flexDirection: "column", gap: 1 }}>
+        <Box sx={{ mb: 3, display: "flex", flexDirection: "column", gap: 1.5 }}>
           <Alert severity="error">{error}</Alert>
           <Button
             size="small"
@@ -112,15 +126,15 @@ export function LobbyTable({ token }: LobbyTableProps): React.ReactElement {
         </Box>
       )}
 
-      {/* Loading skeleton — mirrors the table row structure */}
+      {/* Loading skeleton — mirrors table row height */}
       {isLoading && (
         <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
           {Array.from({ length: 4 }).map((_, i) => (
             <Skeleton
               key={i}
               variant="rectangular"
-              height={52}
-              sx={{ borderRadius: 1 }}
+              height={60}
+              sx={{ borderRadius: "0.5rem", bgcolor: "#fdf2df" }}
             />
           ))}
         </Box>
@@ -129,104 +143,193 @@ export function LobbyTable({ token }: LobbyTableProps): React.ReactElement {
       {/* Empty state */}
       {!isLoading && error === null && rooms.length === 0 && (
         <Typography
-          variant="body2"
-          sx={{ color: "#C9B59C", py: 4, textAlign: "center" }}
+          sx={{
+            fontFamily: "var(--font-work-sans), sans-serif",
+            color: "#695e45",
+            py: 6,
+            textAlign: "center",
+            fontSize: "0.875rem",
+          }}
         >
           No open lobbies at the moment. Check back soon.
         </Typography>
       )}
 
-      {/* Lobby table */}
+      {/* Lobby table — surface-container-low container, no border lines */}
       {!isLoading && error === null && rooms.length > 0 && (
         <TableContainer
           sx={{
-            border: "1px solid",
-            borderColor: "#D9CFC7",
-            borderRadius: 2,
-            bgcolor: "#EFE9E3",
+            bgcolor: "#fdf2df",
+            borderRadius: "0.75rem",
+            overflow: "hidden",
           }}
         >
-          <Table size="small" aria-label="Open lobbies">
+          <Table aria-label="Open lobbies">
             <TableHead>
-              <TableRow sx={{ bgcolor: "#D9CFC7" }}>
-                <TableCell sx={{ fontWeight: 700, color: "#1e1410" }}>
-                  Room Name
-                </TableCell>
-                <TableCell
-                  sx={{ fontWeight: 700, color: "#1e1410" }}
-                  align="center"
-                >
-                  Players
-                </TableCell>
-                <TableCell
-                  sx={{ fontWeight: 700, color: "#1e1410" }}
-                  align="center"
-                >
-                  Status
-                </TableCell>
-                <TableCell
-                  sx={{ fontWeight: 700, color: "#1e1410" }}
-                  align="center"
-                >
-                  Password
-                </TableCell>
-                <TableCell
-                  sx={{ fontWeight: 700, color: "#1e1410" }}
-                  align="right"
-                />
+              <TableRow sx={{ bgcolor: "#f5e7cb" }}>
+                {(
+                  ["Room Name", "Players", "Status", "Password", ""] as const
+                ).map((label, i) => (
+                  <TableCell
+                    key={i}
+                    align={i === 4 ? "right" : "left"}
+                    sx={{
+                      fontFamily: "var(--font-work-sans), sans-serif",
+                      fontSize: "0.7rem",
+                      fontWeight: 600,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.1em",
+                      color: "#695e45",
+                      border: "none",
+                      py: 2,
+                      px: 4,
+                    }}
+                  >
+                    {label}
+                  </TableCell>
+                ))}
               </TableRow>
             </TableHead>
             <TableBody>
-              {rooms.map((room) => (
-                <TableRow
-                  key={room.id}
-                  sx={{
-                    "&:last-child td": { border: 0 },
-                    "&:hover": { bgcolor: "#D9CFC7" },
-                  }}
-                >
-                  <TableCell sx={{ color: "#1e1410", fontWeight: 500 }}>
-                    {room.name}
-                  </TableCell>
-                  <TableCell align="center" sx={{ color: "#5c4230" }}>
-                    {room.player_count}/{room.max_players}
-                  </TableCell>
-                  <TableCell align="center">
-                    <Chip
-                      label={STATUS_LABELS[room.status] ?? room.status}
-                      size="small"
+              {rooms.map((room, index) => {
+                const full = isRoomFull(room);
+                // Alternate subtle background on every other row.
+                const rowBg =
+                  index % 2 === 1 ? "rgba(249,236,213,0.5)" : "transparent";
+
+                return (
+                  <TableRow
+                    key={room.id}
+                    sx={{
+                      bgcolor: rowBg,
+                      "&:hover": { bgcolor: "#f1e1c1" },
+                      transition: "background-color 150ms ease",
+                      // Remove MUI default bottom border.
+                      "& td": { border: "none" },
+                    }}
+                  >
+                    {/* Room name — serif typeface for editorial feel */}
+                    <TableCell
                       sx={{
-                        bgcolor: room.status === "open" ? "#a07d60" : "#C9B59C",
-                        color:
-                          room.status === "open" ? "#F9F8F6" : "#3a2820",
-                        fontWeight: 600,
-                        fontSize: "0.7rem",
-                      }}
-                    />
-                  </TableCell>
-                  <TableCell align="center">
-                    {room.has_password && (
-                      <LockIcon sx={{ fontSize: 16, color: "#7d5e45" }} />
-                    )}
-                  </TableCell>
-                  <TableCell align="right">
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      onClick={() => setJoiningRoom(room)}
-                      sx={{
-                        textTransform: "none",
-                        borderRadius: 2,
-                        borderColor: "#7d5e45",
-                        color: "#7d5e45",
-                        "&:hover": { borderColor: "#5c4230", color: "#5c4230" },
+                        fontFamily: "var(--font-newsreader), serif",
+                        fontSize: "1.1rem",
+                        fontWeight: 500,
+                        color: "#3a311b",
+                        py: 2.5,
+                        px: 4,
                       }}
                     >
-                      Join
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
+                      {room.name}
+                    </TableCell>
+
+                    {/* Player count */}
+                    <TableCell
+                      sx={{
+                        fontFamily: "var(--font-work-sans), sans-serif",
+                        color: "#695e45",
+                        fontSize: "0.875rem",
+                        py: 2.5,
+                        px: 4,
+                      }}
+                    >
+                      {room.player_count} / {room.max_players}
+                    </TableCell>
+
+                    {/* Status badge */}
+                    <TableCell sx={{ py: 2.5, px: 4 }}>
+                      {full ? (
+                        <Chip
+                          label="Full"
+                          size="small"
+                          sx={{
+                            bgcolor: "#bfb193",
+                            color: "#3a311b",
+                            fontFamily: "var(--font-work-sans), sans-serif",
+                            fontSize: "0.7rem",
+                            fontWeight: 500,
+                            height: "1.25rem",
+                            borderRadius: "9999px",
+                          }}
+                        />
+                      ) : (
+                        (() => {
+                          const cfg = STATUS_CONFIG[room.status] ?? {
+                            label: room.status,
+                            bg: "#f1e1c1",
+                            color: "#3a311b",
+                          };
+                          return (
+                            <Chip
+                              label={cfg.label}
+                              size="small"
+                              sx={{
+                                bgcolor: cfg.bg,
+                                color: cfg.color,
+                                fontFamily: "var(--font-work-sans), sans-serif",
+                                fontSize: "0.7rem",
+                                fontWeight: 500,
+                                height: "1.25rem",
+                                borderRadius: "9999px",
+                              }}
+                            />
+                          );
+                        })()
+                      )}
+                    </TableCell>
+
+                    {/* Password indicator */}
+                    <TableCell sx={{ py: 2.5, px: 4 }}>
+                      {room.has_password ? (
+                        <LockIcon
+                          sx={{ fontSize: 16, color: "#725a42" }}
+                        />
+                      ) : (
+                        <LockOpenIcon
+                          sx={{ fontSize: 16, color: "#bfb193" }}
+                        />
+                      )}
+                    </TableCell>
+
+                    {/* Join action */}
+                    <TableCell align="right" sx={{ py: 2.5, px: 4 }}>
+                      <Button
+                        size="small"
+                        disabled={full}
+                        onClick={() => !full && setJoiningRoom(room)}
+                        sx={{
+                          textTransform: "none",
+                          fontFamily: "var(--font-work-sans), sans-serif",
+                          fontSize: "0.8rem",
+                          fontWeight: 500,
+                          px: 2.5,
+                          py: 0.75,
+                          borderRadius: "0.375rem",
+                          // Gradient "foil-stamped" primary button.
+                          background: full
+                            ? "#bfb193"
+                            : "linear-gradient(135deg, #725a42, #654e37)",
+                          color: full ? "#3a311b" : "#fff6f1",
+                          opacity: full ? 0.5 : 1,
+                          cursor: full ? "not-allowed" : "pointer",
+                          "&:hover": {
+                            background: full
+                              ? "#bfb193"
+                              : "linear-gradient(135deg, #7d6249, #725a42)",
+                            filter: full ? "none" : "brightness(1.08)",
+                          },
+                          "&.Mui-disabled": {
+                            background: "#bfb193",
+                            color: "#3a311b",
+                            opacity: 0.5,
+                          },
+                        }}
+                      >
+                        Join
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </TableContainer>

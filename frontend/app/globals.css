@@ -29,3 +29,18 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Custom scrollbar — thin parchment style from the Modern Scriptorium design system. */
+::-webkit-scrollbar {
+  width: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #bfb193;
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #86795e;
+}

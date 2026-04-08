@@ -1,23 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Chip from "@mui/material/Chip";
-import Collapse from "@mui/material/Collapse";
-import List from "@mui/material/List";
-import ListItem from "@mui/material/ListItem";
-import ListItemText from "@mui/material/ListItemText";
 import Skeleton from "@mui/material/Skeleton";
 import Typography from "@mui/material/Typography";
-import { AppCard } from "@/shared/components/AppCard";
 import { getCharacterSpecies } from "@/domains/character/services/character.service";
 import { ApiError } from "@/lib/api/client";
 import type { CharacterSpecies } from "@/domains/character/types";
-
-// Maximum number of traits shown before "Show more" expands the list.
-const TRAITS_PREVIEW_COUNT = 3 as const;
 
 /** Props for SpeciesSelectionGrid. */
 export interface SpeciesSelectionGridProps {
@@ -32,9 +24,8 @@ export interface SpeciesSelectionGridProps {
 /**
  * Displays a grid of selectable character species cards filtered by world theme.
  * Handles loading, empty, and error states as per US-027 acceptance criteria.
- * Each card shows: display_name, size, speed as "{n} ft", and traits (up to 3,
- * expandable to show all). archetype_key is never shown to the player.
- * Uses AppCard with onClick and selected props for interactive selection.
+ * Each card shows: display_name, size, speed as "{n} ft", and all traits.
+ * Uses Modern Scriptorium visual design (US-061).
  */
 export function SpeciesSelectionGrid({
   worldTheme,
@@ -44,8 +35,6 @@ export function SpeciesSelectionGrid({
   const [species, setSpecies] = useState<readonly CharacterSpecies[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  // Tracks which card has its traits expanded (by species id).
-  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -76,9 +65,14 @@ export function SpeciesSelectionGrid({
 
   if (isLoading) {
     return (
-      <Box className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+      <Box className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {Array.from({ length: 6 }).map((_, i) => (
-          <Skeleton key={i} variant="rectangular" height={160} sx={{ borderRadius: 2 }} />
+          <Skeleton
+            key={i}
+            variant="rectangular"
+            height={288}
+            sx={{ borderRadius: "0.75rem", bgcolor: "#fdf2df" }}
+          />
         ))}
       </Box>
     );
@@ -116,83 +110,209 @@ export function SpeciesSelectionGrid({
   }
 
   return (
-    <Box className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-      {species.map((sp, index) => {
-        const isExpanded = expandedId === sp.id;
-        const hasMoreTraits = sp.traits.length > TRAITS_PREVIEW_COUNT;
-        const visibleTraits = isExpanded
-          ? sp.traits
-          : sp.traits.slice(0, TRAITS_PREVIEW_COUNT);
+    <Box>
+      {/* Hero header */}
+      <Box sx={{ mb: 6 }}>
+        <Typography
+          component="h2"
+          sx={{
+            fontFamily: "var(--font-newsreader), serif",
+            fontWeight: 800,
+            fontSize: { xs: "2.75rem", md: "3.75rem" },
+            color: "#3a311b",
+            lineHeight: 1.1,
+            mb: 1.5,
+          }}
+        >
+          Choose Your Species
+        </Typography>
+        <Typography
+          sx={{
+            fontFamily: "var(--font-work-sans), sans-serif",
+            fontSize: "1.125rem",
+            color: "#695e45",
+            maxWidth: "42rem",
+          }}
+        >
+          Your species defines your heritage and innate capabilities. It is the
+          vessel through which your legend shall be poured. Choose wisely, for
+          these traits are woven into your very soul.
+        </Typography>
+      </Box>
 
-        return (
-          <AppCard
-            key={sp.id}
-            title={sp.display_name}
-            chips={[
-              <Chip
-                key="size"
-                label={sp.size}
-                size="small"
-                variant="outlined"
-                sx={{ fontSize: "0.7rem" }}
-              />,
-              <Chip
-                key="speed"
-                label={`${sp.speed} ft`}
-                size="small"
-                variant="outlined"
-                sx={{ fontSize: "0.7rem" }}
-              />,
-            ]}
-            onClick={() => onSelect(sp.id)}
-            selected={sp.id === selectedSpeciesId}
-            staggerIndex={index}
-          >
-            {sp.traits.length > 0 && (
-              <Box sx={{ mt: 0.5 }}>
-                <List dense disablePadding>
-                  {visibleTraits.map((trait, idx) => (
-                    <ListItem key={idx} disableGutters disablePadding>
-                      <ListItemText
-                        primary={trait}
-                        primaryTypographyProps={{
-                          variant: "body2",
-                          color: "text.secondary",
-                          sx: { "&::before": { content: '"• "' } },
-                        }}
-                      />
-                    </ListItem>
-                  ))}
-                </List>
+      {/* Species card grid */}
+      <Box className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        {species.map((sp) => {
+          const isSelected = sp.id === selectedSpeciesId;
 
-                {hasMoreTraits && (
-                  <Collapse in={!isExpanded}>
-                    <Button
-                      size="small"
-                      variant="text"
-                      onClick={(e) => {
-                        // Stop propagation so clicking "Show more" does not
-                        // trigger the AppCard onClick (species selection).
-                        e.stopPropagation();
-                        setExpandedId(sp.id);
-                      }}
-                      sx={{
-                        textTransform: "none",
-                        color: "#7d5e45",
-                        p: 0,
-                        mt: 0.5,
-                        minWidth: 0,
+          return (
+            <div
+              key={sp.id}
+              onClick={() => onSelect(sp.id)}
+              className="group relative overflow-hidden rounded-xl transition-all duration-300 hover:scale-[1.02] cursor-pointer"
+              style={{
+                backgroundColor: "#fdf2df",
+                outline: isSelected ? "2px solid rgba(114,90,66,0.2)" : "none",
+              }}
+            >
+              {/* Image area */}
+              <div className="relative overflow-hidden h-48">
+                <Image
+                  src="/character-placeholder.png"
+                  alt={sp.display_name}
+                  fill
+                  className="object-cover transition-transform duration-500 group-hover:scale-110"
+                />
+                {/* Gradient overlay fading into the card background */}
+                <div
+                  className="absolute inset-0"
+                  style={{
+                    background: "linear-gradient(to top, #fdf2df 0%, transparent 60%)",
+                  }}
+                />
+              </div>
+
+              {/* Card body */}
+              <div className="p-6">
+                {/* Row 1: species name + icon */}
+                <div className="flex items-center justify-between mb-4">
+                  <Typography
+                    component="h3"
+                    sx={{
+                      fontFamily: "var(--font-newsreader), serif",
+                      fontWeight: 700,
+                      fontSize: "1.875rem",
+                      color: "#725a42",
+                      lineHeight: 1,
+                    }}
+                  >
+                    {sp.display_name}
+                  </Typography>
+                  <span
+                    className="material-symbols-outlined"
+                    style={{ fontSize: "2rem", color: "#bfb193" }}
+                  >
+                    shield
+                  </span>
+                </div>
+
+                {/* Row 2: Size + Speed */}
+                <div className="flex gap-4 mb-6">
+                  <div>
+                    <p
+                      style={{
+                        fontSize: "10px",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.1em",
+                        color: "#86795e",
+                        marginBottom: "2px",
                       }}
                     >
-                      Show more ({sp.traits.length - TRAITS_PREVIEW_COUNT} more)
-                    </Button>
-                  </Collapse>
+                      Size
+                    </p>
+                    <p
+                      style={{
+                        fontWeight: 700,
+                        fontSize: "0.9375rem",
+                        color: "#3a311b",
+                      }}
+                    >
+                      {sp.size}
+                    </p>
+                  </div>
+
+                  {/* Vertical divider */}
+                  <div
+                    className="h-8 self-center"
+                    style={{ width: "1px", background: "rgba(191,177,147,0.2)" }}
+                  />
+
+                  <div>
+                    <p
+                      style={{
+                        fontSize: "10px",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.1em",
+                        color: "#86795e",
+                        marginBottom: "2px",
+                      }}
+                    >
+                      Speed
+                    </p>
+                    <p
+                      style={{
+                        fontWeight: 700,
+                        fontSize: "0.9375rem",
+                        color: "#3a311b",
+                      }}
+                    >
+                      {sp.speed} ft
+                    </p>
+                  </div>
+                </div>
+
+                {/* Row 3: traits list */}
+                {sp.traits.length > 0 && (
+                  <div className="flex flex-col gap-1 mb-5">
+                    {sp.traits.map((trait, idx) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        <span
+                          className="material-symbols-outlined"
+                          style={{ fontSize: "0.875rem", color: "#86795e" }}
+                        >
+                          auto_awesome
+                        </span>
+                        <span
+                          style={{
+                            fontSize: "0.875rem",
+                            color: "#695e45",
+                          }}
+                        >
+                          {trait}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 )}
-              </Box>
-            )}
-          </AppCard>
-        );
-      })}
+
+                {/* Row 4: action button */}
+                {isSelected ? (
+                  <button
+                    type="button"
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-full py-2 font-bold text-[10px] uppercase tracking-widest rounded transition-all"
+                    style={{
+                      background: "linear-gradient(135deg, #725a42 0%, #fedcbe 100%)",
+                      color: "#fff6f1",
+                      border: "none",
+                      cursor: "default",
+                    }}
+                  >
+                    Current Choice
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSelect(sp.id);
+                    }}
+                    className="w-full py-2 font-bold text-[10px] uppercase tracking-widest rounded transition-all hover:bg-[#f5e7cb] hover:text-[#725a42]"
+                    style={{
+                      border: "1px solid #bfb193",
+                      color: "#86795e",
+                      background: "transparent",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Select {sp.display_name}
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </Box>
     </Box>
   );
 }

@@ -2,55 +2,64 @@
 
 import { createTheme } from "@mui/material/styles";
 
-// Parchment earth tone palette — sourced from project design tokens.
+// "Modern Scriptorium" palette — sourced from stitch design system.
+// Warmer, amber-leaning parchment tones with earthy browns.
 const palette = {
-  parchment50: "#F9F8F6",
-  parchment100: "#EFE9E3",
-  parchment200: "#D9CFC7",
-  parchment300: "#C9B59C",
-  parchment400: "#b89a7e",
-  parchment500: "#a07d60",
-  parchment600: "#7d5e45",
-  parchment700: "#5c4230",
-  parchment800: "#3a2820",
-  parchment900: "#1e1410",
+  surface: "#fff8f1",
+  surfaceContainerLow: "#fdf2df",
+  surfaceContainerHigh: "#f5e7cb",
+  surfaceContainerHighest: "#f1e1c1",
+  onSurface: "#3a311b",
+  onSurfaceVariant: "#695e45",
+  primary: "#725a42",
+  primaryDim: "#654e37",
+  onPrimary: "#fff6f1",
+  primaryContainer: "#fedcbe",
+  onPrimaryContainer: "#654d37",
+  outlineVariant: "#bfb193",
+  outline: "#86795e",
+  error: "#9e422c",
 } as const;
 
 /**
  * MUI theme for the DnD Frontend application.
- * Maps the parchment palette to MUI theme tokens.
- * Import this and pass it to ThemeProvider in the root layout.
+ * Implements the "Modern Scriptorium" design system.
+ * Uses Work Sans for UI text and Newsreader for editorial headings.
  */
 export const theme = createTheme({
   palette: {
     mode: "light",
     primary: {
-      light: palette.parchment400,
-      main: palette.parchment500,
-      dark: palette.parchment600,
-      contrastText: palette.parchment50,
+      light: palette.primaryContainer,
+      main: palette.primary,
+      dark: palette.primaryDim,
+      contrastText: palette.onPrimary,
     },
     secondary: {
-      light: palette.parchment200,
-      main: palette.parchment300,
-      dark: palette.parchment400,
-      contrastText: palette.parchment800,
+      light: palette.surfaceContainerLow,
+      main: palette.outlineVariant,
+      dark: palette.outline,
+      contrastText: palette.onSurface,
     },
     background: {
-      default: palette.parchment50,
-      paper: palette.parchment100,
+      default: palette.surface,
+      paper: palette.surfaceContainerLow,
     },
     text: {
-      primary: palette.parchment900,
-      secondary: palette.parchment700,
-      disabled: palette.parchment300,
+      primary: palette.onSurface,
+      secondary: palette.onSurfaceVariant,
+      disabled: palette.outlineVariant,
     },
-    divider: palette.parchment200,
+    divider: palette.outlineVariant,
+    error: {
+      main: palette.error,
+    },
   },
   typography: {
-    fontFamily: "var(--font-geist-sans), Arial, Helvetica, sans-serif",
+    fontFamily: "var(--font-work-sans), Arial, Helvetica, sans-serif",
   },
   shape: {
-    borderRadius: 8,
+    // sm radius from design system — approachable, never sharp 90-degree corners.
+    borderRadius: 6,
   },
 });
