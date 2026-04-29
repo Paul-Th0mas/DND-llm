@@ -15,7 +15,7 @@ dungeon_data is a JSON column storing the full rooms and quest payload:
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, Text, Uuid
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, Uuid
 from sqlalchemy.dialects.postgresql import JSON
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -34,8 +34,15 @@ class DungeonORM(Base):
     )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     premise: Mapped[str] = mapped_column(Text, nullable=False)
-    # Full dungeon payload: rooms[] and quest stored as JSON
+    # Full dungeon payload: rooms[], quest, and quest_metadata stored as JSON
     dungeon_data: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False
+    )
+    # Room progression state (US-069)
+    current_room_index: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default="0"
+    )
+    completed_stage_indices: Mapped[list[int]] = mapped_column(
+        JSON, nullable=False, server_default="[]"
     )

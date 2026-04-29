@@ -22,7 +22,17 @@ from app.dungeons.domain.models import (
     DungeonQuest,
     DungeonRoom,
     DungeonSettings,
+    EffectType,
+    EnemyData,
+    GameEffect,
+    LootItem,
+    NpcData,
+    NpcInventoryItem,
+    QuestMetadata,
+    RoomMechanics,
     RoomType,
+    SkillCheck,
+    TriggerData,
 )
 from app.dungeons.infrastructure.prompts.assembler import PromptAssembler
 from app.worlds.domain.models import World
@@ -268,6 +278,12 @@ class StubDungeonNarrator(DungeonNarratorPort):
                 )
             ),
         )
+        quest_metadata = QuestMetadata(
+            name=str(template["quest_name"]),
+            recommended_level=5,
+            environment="Dungeon",
+            global_modifiers="Darkness: Torches required in unlit areas.",
+        )
         dungeon = Dungeon(
             id=uuid.uuid4(),
             campaign_id=settings.campaign_id,
@@ -277,6 +293,9 @@ class StubDungeonNarrator(DungeonNarratorPort):
             rooms=rooms,
             quest=quest,
             created_at=datetime.now(tz=timezone.utc),
+            quest_metadata=quest_metadata,
+            current_room_index=0,
+            completed_stage_indices=[],
         )
         logger.info("StubDungeonNarrator: generated dungeon '%s'", dungeon.name)
         return dungeon
@@ -287,7 +306,7 @@ class StubDungeonNarrator(DungeonNarratorPort):
         room_type: RoomType,
         template: dict[str, object],
     ) -> DungeonRoom:
-        """Build a single DungeonRoom from the template."""
+        """Build a single DungeonRoom from the template with structured data."""
         enemies_map = template.get("enemies_by_type", {})
         names_map = template.get("room_names_by_type", {})
 
@@ -308,6 +327,126 @@ class StubDungeonNarrator(DungeonNarratorPort):
             npc_list = enemy_list
             enemy_list = []
 
+        # Build structured data based on room type.
+        enemies: EnemyData | None = None
+        mechanics: RoomMechanics | None = None
+        loot_table: tuple[LootItem, ...] | None = None
+        npc_data: tuple[NpcData, ...] | None = None
+
+        if room_type == RoomType.COMBAT:
+            enemies = EnemyData(
+                initial=tuple(enemy_list),
+                reinforcements=(),
+                trigger_condition=None,
+                environmental_hazards=None,
+            )
+            mechanics = RoomMechanics(
+                skill_checks=(
+                    SkillCheck(
+                        type="Perception",
+                        dc=12,
+                        on_success="Enemy positions revealed.",
+                        on_failure=None,
+                    ),
+                ),
+                game_effects=(
+                    GameEffect(
+                        effect_type=EffectType.DAMAGE,
+                        trigger=TriggerData(
+                            trigger_action="on_enemy_death",
+                            check_stat=None,
+                            dc=None,
+                        ),
+                        value=6,
+                    ),
+                ),
+            )
+        elif room_type == RoomType.BOSS:
+            boss_name = enemy_list[0] if enemy_list else "Boss"
+            enemies = EnemyData(
+                initial=(),
+                reinforcements=(),
+                boss=boss_name,
+                special_attacks=("Legendary Action: Sweep",),
+            )
+            mechanics = RoomMechanics(
+                skill_checks=(
+                    SkillCheck(
+                        type="Athletics",
+                        dc=15,
+                        on_success="Knock boss back 10 ft.",
+                        on_failure="No effect.",
+                    ),
+                ),
+                victory_items=("Boss Trophy",),
+                game_effects=(
+                    GameEffect(
+                        effect_type=EffectType.GRANT_LOOT,
+                        trigger=TriggerData(
+                            trigger_action="on_boss_defeated",
+                            check_stat=None,
+                            dc=None,
+                        ),
+                        item_id="boss_trophy",
+                    ),
+                ),
+            )
+        elif room_type == RoomType.TREASURE:
+            loot_table = (
+                LootItem(item="Gold Pouch", quantity=1, value="200gp"),
+                LootItem(item="+1 Longsword", quantity=1, rarity="Uncommon"),
+            )
+            mechanics = RoomMechanics(
+                skill_checks=(
+                    SkillCheck(
+                        type="Perception",
+                        dc=10,
+                        on_success="Find hidden compartment.",
+                        on_failure=None,
+                    ),
+                ),
+                game_effects=(
+                    GameEffect(
+                        effect_type=EffectType.UNLOCK_PATH,
+                        trigger=TriggerData(
+                            trigger_action="on_chest_opened",
+                            check_stat=None,
+                            dc=None,
+                        ),
+                    ),
+                ),
+            )
+        elif room_type == RoomType.SHOP:
+            npc_name = npc_list[0] if npc_list else "Merchant"
+            npc_data = (
+                NpcData(
+                    name=npc_name,
+                    role="Merchant",
+                    inventory=(NpcInventoryItem(item="Healing Potion", price=50),),
+                    interaction_dc={
+                        "Persuasion": 12,
+                        "note": "Discount if persuaded.",
+                    },
+                ),
+            )
+            mechanics = RoomMechanics(skill_checks=())
+        elif room_type == RoomType.REST:
+            mechanics = RoomMechanics(
+                skill_checks=(),
+                rest_benefit="Regain up to 2 Hit Dice worth of HP.",
+            )
+        elif room_type == RoomType.EVENT:
+            mechanics = RoomMechanics(
+                skill_checks=(
+                    SkillCheck(
+                        type="Investigation",
+                        dc=13,
+                        on_success="Gain clue about boss.",
+                        on_failure="Nothing useful found.",
+                    ),
+                )
+            )
+
         return DungeonRoom(
             index=index,
             room_type=room_type,
@@ -317,6 +456,10 @@ class StubDungeonNarrator(DungeonNarratorPort):
             description=_ROOM_DESCRIPTIONS.get(room_type, "A dungeon room."),
             enemy_names=tuple(enemy_list),
             npc_names=tuple(npc_list),
+            enemies=enemies,
+            mechanics=mechanics,
+            loot_table=loot_table,
+            npc_data=npc_data,
         )
 
 
@@ -422,6 +565,144 @@ class GeminiDungeonNarrator(DungeonNarratorPort):
         return self._parse_dungeon(data, settings, world.id)
 
     @staticmethod
+    def _parse_mechanics(raw: object, room_index: int) -> RoomMechanics:
+        """Parse the mechanics array from a room dict into a RoomMechanics domain object."""
+        # Permissive fallback for REST/SHOP rooms that legitimately have no mechanics.
+        if not isinstance(raw, list):
+            return RoomMechanics(skill_checks=())
+
+        game_effects: list[GameEffect] = []
+        for mechanic in raw:
+            if not isinstance(mechanic, dict):
+                raise DungeonGenerationError(
+                    f"Room {room_index}: mechanic entry is not an object"
+                )
+            md: dict[str, object] = mechanic
+
+            # Parse trigger block.
+            trigger_raw = md.get("trigger", {})
+            if not isinstance(trigger_raw, dict):
+                raise DungeonGenerationError(
+                    f"Room {room_index}: mechanic trigger is not an object"
+                )
+            td: dict[str, object] = trigger_raw
+
+            trigger_action_val = td.get("trigger_action", "")
+            trigger_action = (
+                str(trigger_action_val) if isinstance(trigger_action_val, str) else ""
+            )
+
+            check_stat_val = td.get("check_stat")
+            check_stat = (
+                str(check_stat_val) if isinstance(check_stat_val, str) else None
+            )
+
+            dc_val = td.get("dc")
+            dc: int | None = None
+            if isinstance(dc_val, int):
+                if not (1 <= dc_val <= 30):
+                    raise DungeonGenerationError(
+                        f"Room {room_index}: trigger dc={dc_val} is out of range 1-30"
+                    )
+                dc = dc_val
+
+            trigger = TriggerData(
+                trigger_action=trigger_action,
+                check_stat=check_stat,
+                dc=dc,
+            )
+
+            # Parse effects list -- must be non-empty.
+            effects_raw = md.get("effects")
+            if not isinstance(effects_raw, list) or len(effects_raw) == 0:
+                raise DungeonGenerationError(
+                    f"Room {room_index}: mechanic effects must be a non-empty list"
+                )
+
+            for effect_raw in effects_raw:
+                if not isinstance(effect_raw, dict):
+                    raise DungeonGenerationError(
+                        f"Room {room_index}: effect entry is not an object"
+                    )
+                ed: dict[str, object] = effect_raw
+
+                effect_type_val = ed.get("effect_type", "NONE")
+                try:
+                    effect_type = EffectType(str(effect_type_val))
+                except ValueError:
+                    raise DungeonGenerationError(
+                        f"Room {room_index}: unknown effect_type '{effect_type_val}'"
+                    )
+
+                value_val = ed.get("value")
+                value = int(value_val) if isinstance(value_val, int) else None
+
+                status_val = ed.get("status")
+                status = str(status_val) if isinstance(status_val, str) else None
+
+                item_id_val = ed.get("item_id")
+                item_id = str(item_id_val) if isinstance(item_id_val, str) else None
+
+                game_effects.append(
+                    GameEffect(
+                        effect_type=effect_type,
+                        trigger=trigger,
+                        value=value,
+                        status=status,
+                        item_id=item_id,
+                    )
+                )
+
+        return RoomMechanics(
+            skill_checks=(),
+            game_effects=tuple(game_effects),
+        )
+
+    @staticmethod
+    def _parse_loot(raw: object, room_index: int) -> tuple[LootItem, ...]:
+        """Parse the loot array from a room dict into a tuple of LootItem domain objects."""
+        if not isinstance(raw, list):
+            return ()
+
+        items: list[LootItem] = []
+        for entry in raw:
+            if not isinstance(entry, dict):
+                logger.warning(
+                    "Room %d: loot entry is not an object, skipping", room_index
+                )
+                continue
+            ld: dict[str, object] = entry
+
+            item_id_val = ld.get("item_id")
+            name_val = ld.get("name")
+            quantity_val = ld.get("quantity")
+
+            if not isinstance(item_id_val, str) or not isinstance(name_val, str):
+                logger.warning(
+                    "Room %d: loot entry missing item_id or name, skipping", room_index
+                )
+                continue
+
+            if not isinstance(quantity_val, int) or quantity_val < 1:
+                logger.warning(
+                    "Room %d: loot entry quantity invalid (%s), skipping",
+                    room_index,
+                    quantity_val,
+                )
+                continue
+
+            items.append(
+                LootItem(
+                    item=name_val,
+                    quantity=quantity_val,
+                    value=None,
+                    rarity=None,
+                )
+            )
+
+        return tuple(items)
+
+    @staticmethod
     def _parse_dungeon(
         data: object,
         settings: DungeonSettings,
@@ -474,8 +755,8 @@ class GeminiDungeonNarrator(DungeonNarratorPort):
             rd: dict[str, object] = item
 
             index_val = rd.get("index", len(rooms))
+            room_idx = int(index_val) if isinstance(index_val, int) else len(rooms)
             room_type_val = rd.get("room_type", "COMBAT")
-            special_val = rd.get("special_notes")
 
             try:
                 room_type = RoomType(str(room_type_val))
@@ -489,9 +770,14 @@ class GeminiDungeonNarrator(DungeonNarratorPort):
             )
             npc_list_raw = npc_names_raw if isinstance(npc_names_raw, list) else []
 
+            mechanics = GeminiDungeonNarrator._parse_mechanics(
+                rd.get("mechanics", []), room_idx
+            )
+            loot_table = GeminiDungeonNarrator._parse_loot(rd.get("loot", []), room_idx)
+
             rooms.append(
                 DungeonRoom(
-                    index=int(index_val) if isinstance(index_val, int) else len(rooms),
+                    index=room_idx,
                     room_type=room_type,
                     name=str(rd.get("name", "Unknown Room")),
                     description=str(rd.get("description", "")),
@@ -499,7 +785,8 @@ class GeminiDungeonNarrator(DungeonNarratorPort):
                         str(e) for e in enemy_list_raw if isinstance(e, str)
                     ),
                     npc_names=tuple(str(n) for n in npc_list_raw if isinstance(n, str)),
-                    special_notes=special_val if isinstance(special_val, str) else None,
+                    mechanics=mechanics,
+                    loot_table=loot_table if loot_table else None,
                 )
             )
 

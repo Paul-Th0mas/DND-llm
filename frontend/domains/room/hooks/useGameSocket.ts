@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useCallback } from "react";
 import { useRoomStore } from "@/domains/room/store/room.store";
+import { useDungeonStore } from "@/domains/dungeon/store/dungeon.store";
 import type { GameEvent } from "@/domains/room/types";
 
 // WebSocket server base URL.
@@ -90,8 +91,24 @@ export function useGameSocket(
           removePlayer(gameEvent.user_id);
           break;
 
+        case "room_advanced":
+          useDungeonStore.getState().setCurrentRoomIndex(gameEvent.room_index);
+          addEvent(gameEvent);
+          break;
+
+        case "quest_stage_advanced":
+          useDungeonStore.getState().markQuestStageComplete(gameEvent.stage_index);
+          addEvent(gameEvent);
+          break;
+
+        case "permission_denied":
+        case "validation_error":
+          // Map to error event shape for the event feed.
+          addEvent({ type: "error", detail: gameEvent.detail });
+          break;
+
         default:
-          // dice_roll, chat_message, dm_announcement, error — append to feed.
+          // dice_roll, chat_message, dm_announcement, error, room_event_outcome — append to feed.
           addEvent(gameEvent);
           break;
       }

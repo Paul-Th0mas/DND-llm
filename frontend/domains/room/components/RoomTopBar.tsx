@@ -120,15 +120,21 @@ export function RoomTopBar({ onLeave, send }: RoomTopBarProps): React.ReactEleme
       elevation={0}
       sx={{
         bgcolor: "#1e1410",
-        borderBottom: "1px solid rgba(255,255,255,0.08)",
+        // Tinted shadow instead of a visible border line.
+        boxShadow: "0 2px 16px rgba(58,49,27,0.3)",
       }}
     >
-      <Toolbar sx={{ gap: 2, minHeight: 56 }}>
-        {/* Room name */}
+      <Toolbar sx={{ gap: 2, minHeight: 52 }}>
+        {/* Room name — Newsreader serif for narrative identity */}
         <Typography
-          variant="h6"
-          fontWeight={700}
-          sx={{ color: "#F9F8F6", letterSpacing: "-0.01em", mr: 1 }}
+          sx={{
+            fontFamily: "var(--font-newsreader), serif",
+            fontSize: "1.1rem",
+            fontWeight: 700,
+            color: "#fff8f1",
+            letterSpacing: "-0.01em",
+            mr: 1,
+          }}
         >
           {room?.name ?? "Room"}
         </Typography>
@@ -139,17 +145,18 @@ export function RoomTopBar({ onLeave, send }: RoomTopBarProps): React.ReactEleme
             <FiberManualRecordIcon
               sx={{
                 fontSize: "0.6rem !important",
-                color: isConnected ? "#4caf50 !important" : "#f44336 !important",
+                color: isConnected ? "#4caf50 !important" : "#9e422c !important",
               }}
             />
           }
-          label={isConnected ? "Connected" : "Reconnecting…"}
+          label={isConnected ? "Connected" : "Reconnecting..."}
           size="small"
           variant="outlined"
           sx={{
-            color: isConnected ? "#4caf50" : "#f44336",
-            borderColor: isConnected ? "#4caf50" : "#f44336",
-            fontSize: "0.72rem",
+            fontFamily: "var(--font-work-sans), sans-serif",
+            fontSize: "0.7rem",
+            color: isConnected ? "#4caf50" : "#9e422c",
+            borderColor: isConnected ? "rgba(76,175,80,0.4)" : "rgba(158,66,44,0.4)",
           }}
         />
 
@@ -164,7 +171,7 @@ export function RoomTopBar({ onLeave, send }: RoomTopBarProps): React.ReactEleme
                   fontFamily: "monospace",
                   fontSize: "0.85rem",
                   fontWeight: 700,
-                  letterSpacing: "0.1em",
+                  letterSpacing: "0.15em",
                   color: "#a07d60",
                 }}
               >
@@ -174,7 +181,7 @@ export function RoomTopBar({ onLeave, send }: RoomTopBarProps): React.ReactEleme
                 size="small"
                 onClick={handleCopyInvite}
                 aria-label="Copy invite code"
-                sx={{ color: "#a07d60" }}
+                sx={{ color: "#a07d60", "&:hover": { bgcolor: "rgba(160,125,96,0.12)" } }}
               >
                 <ContentCopyIcon fontSize="small" />
               </IconButton>
@@ -182,13 +189,13 @@ export function RoomTopBar({ onLeave, send }: RoomTopBarProps): React.ReactEleme
           </Tooltip>
         )}
 
-        {/* Current user name */}
+        {/* Current user name — Work Sans label */}
         {user && (
           <Typography
-            variant="body2"
             sx={{
-              color: "#C9B59C",
-              fontSize: "0.8rem",
+              fontFamily: "var(--font-work-sans), sans-serif",
+              fontSize: "0.75rem",
+              color: "#bfb193",
               maxWidth: 160,
               overflow: "hidden",
               textOverflow: "ellipsis",
@@ -199,7 +206,7 @@ export function RoomTopBar({ onLeave, send }: RoomTopBarProps): React.ReactEleme
           </Typography>
         )}
 
-        {/* DM-only Start Session button */}
+        {/* DM-only Start Session — foil-stamp primary button */}
         {isOwningDm && (
           <Button
             size="small"
@@ -208,31 +215,38 @@ export function RoomTopBar({ onLeave, send }: RoomTopBarProps): React.ReactEleme
             onClick={() => send({ type: "start_session" })}
             sx={{
               textTransform: "none",
+              fontFamily: "var(--font-work-sans), sans-serif",
               fontWeight: 600,
-              bgcolor: "#5c4230",
-              color: "#F9F8F6",
-              "&:hover": { bgcolor: "#7d5e45" },
+              fontSize: "0.75rem",
+              background: "linear-gradient(135deg, #725a42, #fedcbe)",
+              color: "#fff6f1",
+              borderRadius: "0.375rem",
+              boxShadow: "none",
+              "&:hover": { filter: "brightness(1.1)", boxShadow: "none" },
             }}
           >
             Start Session
           </Button>
         )}
 
-        {/* DM-only End Session button */}
+        {/* DM-only End Session — secondary ghost button */}
         {isOwningDm && (
           <Button
             size="small"
             variant="outlined"
-            color="error"
             startIcon={<StopCircleIcon fontSize="small" />}
             onClick={handleOpenEndDialog}
             sx={{
               textTransform: "none",
-              borderColor: "rgba(211,47,47,0.4)",
-              color: "#ef9a9a",
+              fontFamily: "var(--font-work-sans), sans-serif",
+              fontWeight: 600,
+              fontSize: "0.75rem",
+              borderRadius: "0.375rem",
+              color: "#9e422c",
+              borderColor: "rgba(158,66,44,0.35)",
               "&:hover": {
-                borderColor: "#ef5350",
-                bgcolor: "rgba(211,47,47,0.08)",
+                borderColor: "#9e422c",
+                bgcolor: "rgba(158,66,44,0.08)",
               },
             }}
           >
@@ -240,7 +254,7 @@ export function RoomTopBar({ onLeave, send }: RoomTopBarProps): React.ReactEleme
           </Button>
         )}
 
-        {/* Leave button */}
+        {/* Leave button — tertiary ghost style */}
         <Button
           size="small"
           variant="outlined"
@@ -248,11 +262,15 @@ export function RoomTopBar({ onLeave, send }: RoomTopBarProps): React.ReactEleme
           onClick={onLeave}
           sx={{
             textTransform: "none",
-            color: "#C9B59C",
-            borderColor: "rgba(201,181,156,0.3)",
+            fontFamily: "var(--font-work-sans), sans-serif",
+            fontWeight: 500,
+            fontSize: "0.75rem",
+            borderRadius: "0.375rem",
+            color: "#bfb193",
+            borderColor: "rgba(191,177,147,0.25)",
             "&:hover": {
-              borderColor: "#C9B59C",
-              bgcolor: "rgba(201,181,156,0.08)",
+              borderColor: "#bfb193",
+              bgcolor: "rgba(191,177,147,0.08)",
             },
           }}
         >
@@ -261,21 +279,53 @@ export function RoomTopBar({ onLeave, send }: RoomTopBarProps): React.ReactEleme
       </Toolbar>
     </AppBar>
 
-    {/* End Session confirmation dialog */}
+    {/* End Session confirmation dialog — glassmorphism overlay style */}
     <Dialog
       open={endDialogOpen}
       onClose={handleCloseEndDialog}
       maxWidth="xs"
       fullWidth
+      PaperProps={{
+        sx: {
+          bgcolor: "rgba(249,236,213,0.92)",
+          backdropFilter: "blur(12px)",
+          boxShadow: "0 20px 60px rgba(58,49,27,0.15)",
+          borderRadius: "0.5rem",
+        },
+      }}
     >
-      <DialogTitle sx={{ fontWeight: 700 }}>End Session</DialogTitle>
+      <DialogTitle
+        sx={{
+          fontFamily: "var(--font-newsreader), serif",
+          fontSize: "1.2rem",
+          fontWeight: 700,
+          color: "#1e1410",
+        }}
+      >
+        End Session
+      </DialogTitle>
       <DialogContent>
-        <Typography variant="body2" sx={{ mb: endError !== null ? 2 : 0 }}>
-          Are you sure you want to close this room? All players will be
-          disconnected.
+        <Typography
+          sx={{
+            fontFamily: "var(--font-work-sans), sans-serif",
+            fontSize: "0.875rem",
+            color: "#3a311b",
+            mb: endError !== null ? 2 : 0,
+          }}
+        >
+          Are you sure you want to close this room? All players will be disconnected.
         </Typography>
         {endError !== null && (
-          <Alert severity="error" sx={{ fontSize: "0.8rem" }}>
+          <Alert
+            severity="error"
+            sx={{
+              fontSize: "0.8rem",
+              bgcolor: "rgba(158,66,44,0.05)",
+              color: "#9e422c",
+              border: "none",
+              "& .MuiAlert-icon": { color: "#9e422c" },
+            }}
+          >
             {endError}
           </Alert>
         )}
@@ -284,18 +334,31 @@ export function RoomTopBar({ onLeave, send }: RoomTopBarProps): React.ReactEleme
         <Button
           onClick={handleCloseEndDialog}
           disabled={isEnding}
-          sx={{ textTransform: "none", color: "text.secondary" }}
+          sx={{
+            textTransform: "none",
+            fontFamily: "var(--font-work-sans), sans-serif",
+            color: "#695e45",
+            "&:hover": { bgcolor: "rgba(114,90,66,0.08)" },
+          }}
         >
           Cancel
         </Button>
         <Button
           variant="contained"
-          color="error"
           onClick={handleConfirmEnd}
           disabled={isEnding}
-          sx={{ textTransform: "none", fontWeight: 600, borderRadius: 2 }}
+          sx={{
+            textTransform: "none",
+            fontFamily: "var(--font-work-sans), sans-serif",
+            fontWeight: 600,
+            borderRadius: "0.375rem",
+            bgcolor: "#9e422c",
+            color: "#fff7f6",
+            boxShadow: "none",
+            "&:hover": { bgcolor: "#742410", boxShadow: "none" },
+          }}
         >
-          {isEnding ? "Closing…" : "Confirm"}
+          {isEnding ? "Closing..." : "Confirm"}
         </Button>
       </DialogActions>
     </Dialog>

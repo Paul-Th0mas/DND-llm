@@ -48,6 +48,35 @@ export const useDungeonStore = create<DungeonStore>()(
           false,
           "dungeon/clearDungeon"
         ),
+
+      setCurrentRoomIndex: (index: number) =>
+        set(
+          (state) => {
+            if (state.activeDungeon === null) return state;
+            return {
+              activeDungeon: { ...state.activeDungeon, current_room_index: index },
+            };
+          },
+          false,
+          "dungeon/setCurrentRoomIndex"
+        ),
+
+      markQuestStageComplete: (stageIndex: number) =>
+        set(
+          (state) => {
+            if (state.activeDungeon === null) return state;
+            const existing = state.activeDungeon.completed_stage_indices;
+            if (existing.includes(stageIndex)) return state;
+            return {
+              activeDungeon: {
+                ...state.activeDungeon,
+                completed_stage_indices: [...existing, stageIndex],
+              },
+            };
+          },
+          false,
+          "dungeon/markQuestStageComplete"
+        ),
     }),
     { name: "DungeonStore" }
   )
@@ -79,3 +108,20 @@ export const selectIsLoadingDungeon = (
 export const selectIsGenerating = (
   state: DungeonStore
 ): DungeonState["isGenerating"] => state.isGenerating;
+
+/**
+ * Selects the current room index from the Dungeon store.
+ * @param state - The current Dungeon store state.
+ * @returns The zero-based index of the active room, defaulting to 0.
+ */
+export const selectCurrentRoomIndex = (state: DungeonStore): number =>
+  state.activeDungeon?.current_room_index ?? 0;
+
+/**
+ * Selects the completed quest stage indices from the Dungeon store.
+ * @param state - The current Dungeon store state.
+ * @returns The list of completed stage indices.
+ */
+export const selectCompletedStageIndices = (
+  state: DungeonStore
+): readonly number[] => state.activeDungeon?.completed_stage_indices ?? [];

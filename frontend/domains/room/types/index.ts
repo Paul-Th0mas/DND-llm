@@ -107,6 +107,58 @@ export interface DungeonIntroEvent {
     readonly tone: string;
     readonly themes: readonly string[];
   };
+  /** Global dungeon modifier string from quest_metadata (US-070). Null for legacy dungeons. */
+  readonly global_modifiers?: string | null;
+  /** Dungeon environment string from quest_metadata (US-070). Null for legacy dungeons. */
+  readonly environment?: string | null;
+}
+
+/** Emitted when the DM advances the active room (US-069). */
+export interface RoomAdvancedEvent {
+  readonly type: "room_advanced";
+  readonly room_index: number;
+  /** The full room object at the new index. Typed loosely to avoid cross-domain imports. */
+  readonly room: {
+    readonly index: number;
+    readonly room_type: string;
+    readonly name: string;
+    readonly description: string;
+    readonly enemies?: unknown;
+    readonly mechanics?: unknown;
+    readonly loot_table?: unknown;
+    readonly npc_data?: unknown;
+  };
+}
+
+/** Emitted when the DM marks a quest stage complete (US-069). */
+export interface QuestStageAdvancedEvent {
+  readonly type: "quest_stage_advanced";
+  readonly stage_index: number;
+  readonly stage_text: string;
+}
+
+/** Emitted after a skill check is resolved server-side (US-070). */
+export interface RoomEventOutcomeEvent {
+  readonly type: "room_event_outcome";
+  readonly room_index: number;
+  readonly skill_type: string;
+  readonly roll_result: number;
+  readonly dc: number;
+  readonly outcome: "success" | "failure";
+  /** The narrative result text. Absent when on_failure is null and outcome is failure. */
+  readonly narrative?: string;
+}
+
+/** Sent to the sender when they attempted a DM-only action without the DM role. */
+export interface PermissionDeniedEvent {
+  readonly type: "permission_denied";
+  readonly detail: string;
+}
+
+/** Sent to the sender when a message fails server-side validation. */
+export interface ValidationErrorEvent {
+  readonly type: "validation_error";
+  readonly detail: string;
 }
 
 /** Union of all possible server-to-client WebSocket events. */
@@ -118,4 +170,9 @@ export type GameEvent =
   | DmAnnouncementEvent
   | ChatMessageEvent
   | ErrorEvent
-  | DungeonIntroEvent;
+  | DungeonIntroEvent
+  | RoomAdvancedEvent
+  | QuestStageAdvancedEvent
+  | RoomEventOutcomeEvent
+  | PermissionDeniedEvent
+  | ValidationErrorEvent;

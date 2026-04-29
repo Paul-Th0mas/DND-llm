@@ -19,7 +19,7 @@ import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import MapIcon from "@mui/icons-material/Map";
 import LinkIcon from "@mui/icons-material/Link";
 import { getDungeonDetail, listDungeons } from "@/domains/dungeon/services/dungeon.service";
-import { useDungeonStore, selectActiveDungeon } from "@/domains/dungeon/store/dungeon.store";
+import { useDungeonStore, selectActiveDungeon, selectCurrentRoomIndex } from "@/domains/dungeon/store/dungeon.store";
 import { GeneratedDungeonView } from "@/domains/dungeon/components/GeneratedDungeonView";
 import { getCampaigns } from "@/domains/campaign/services/campaign.service";
 import { linkRoomDungeon } from "@/domains/room/services/room.service";
@@ -28,7 +28,7 @@ import type { CampaignSummary } from "@/domains/campaign/types";
 import type { DungeonSummary } from "@/domains/dungeon/types";
 
 // Width of the dungeon panel when expanded, in pixels.
-const PANEL_WIDTH = 360;
+const PANEL_WIDTH = 320;
 
 /** Props for the RoomDungeonPanel component. */
 export interface RoomDungeonPanelProps {
@@ -40,6 +40,11 @@ export interface RoomDungeonPanelProps {
   readonly roomId: string;
   /** True when the authenticated user is the DM owner of this room. */
   readonly isDm: boolean;
+  /**
+   * Sends a WebSocket message to the room server.
+   * Used for DM room navigation (advance_room) and skill check resolution (resolve_skill_check).
+   */
+  readonly send: (message: Record<string, unknown>) => void;
 }
 
 /** Step within the link-dungeon dialog flow. */
@@ -67,6 +72,7 @@ export function RoomDungeonPanel({
   token,
   roomId,
   isDm,
+  send,
 }: RoomDungeonPanelProps): React.ReactElement | null {
   // Default open on wide viewports; starts closed so the panel does not
   // flash open before data is available.
@@ -85,7 +91,27 @@ export function RoomDungeonPanel({
 
   const setActiveDungeon = useDungeonStore((s) => s.setActiveDungeon);
   const activeDungeon = useDungeonStore(selectActiveDungeon);
+  const currentRoomIndex = useDungeonStore(selectCurrentRoomIndex);
   const updateRoom = useRoomStore((s) => s.updateRoom);
+
+  /** Sends an advance_room message to the server (DM only, US-069). */
+  function handleAdvanceRoom(direction: "next" | "prev"): void {
+    const totalRooms = activeDungeon?.rooms.length ?? 0;
+    const newIndex = direction === "next" ? currentRoomIndex + 1 : currentRoomIndex - 1;
+    if (newIndex < 0 || newIndex >= totalRooms) return;
+    send({ type: "advance_room", room_index: newIndex });
+  }
+
+  /**
+   * Sends a resolve_skill_check message to the server (US-070).
+   * @param roomIndex - The room index where the skill check is being resolved.
+   * @param skillType - The type of skill check (e.g. "Perception").
+   * @param dc - The difficulty class.
+   * @param rollResult - The player's d20 roll result.
+   */
+  function handleRollCheck(roomIndex: number, skillType: string, dc: number, rollResult: number): void {
+    send({ type: "resolve_skill_check", room_index: roomIndex, skill_type: skillType, roll_result: rollResult, dc });
+  }
 
   useEffect(() => {
     if (!dungeonId) return;
@@ -200,7 +226,7 @@ export function RoomDungeonPanel({
 
     return (
       <>
-        {/* Slim prompt panel for the DM */}
+        {/* Slim prompt panel for the DM — no explicit border, uses bg shift */}
         <Box
           component="aside"
           sx={{
@@ -209,8 +235,7 @@ export function RoomDungeonPanel({
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
-            bgcolor: "#EFE9E3",
-            borderLeft: "1px solid #D9CFC7",
+            bgcolor: "#fff8f1",
             pt: 1.5,
             gap: 1,
           }}
@@ -220,18 +245,19 @@ export function RoomDungeonPanel({
               size="small"
               onClick={handleOpenDialog}
               aria-label="Link a dungeon to this room"
-              sx={{ color: "#a07d60" }}
+              sx={{ color: "#a07d60", "&:hover": { bgcolor: "#fdf2df" } }}
             >
               <LinkIcon fontSize="small" />
             </IconButton>
           </Tooltip>
           {/* Rotated label so the DM understands the icon's purpose */}
           <Typography
-            variant="overline"
             sx={{
-              fontSize: "0.6rem",
-              letterSpacing: "0.12em",
-              color: "#C9B59C",
+              fontFamily: "var(--font-work-sans), sans-serif",
+              fontSize: "0.55rem",
+              letterSpacing: "0.15em",
+              textTransform: "uppercase",
+              color: "#bfb193",
               fontWeight: 600,
               writingMode: "vertical-rl",
               textOrientation: "mixed",
@@ -243,7 +269,7 @@ export function RoomDungeonPanel({
           </Typography>
         </Box>
 
-        {/* Two-step Link Dungeon dialog */}
+        {/* Two-step Link Dungeon dialog — glassmorphism style for floating overlay */}
         <Dialog
           open={dialogOpen}
           onClose={handleCloseDialog}
@@ -251,16 +277,19 @@ export function RoomDungeonPanel({
           fullWidth
           PaperProps={{
             sx: {
-              bgcolor: "#EFE9E3",
-              border: "1px solid #D9CFC7",
+              bgcolor: "rgba(249,236,213,0.92)",
+              backdropFilter: "blur(12px)",
+              boxShadow: "0 20px 60px rgba(58,49,27,0.15)",
+              borderRadius: "0.5rem",
             },
           }}
         >
           <DialogTitle
             sx={{
-              color: "#1e1410",
+              fontFamily: "var(--font-newsreader), serif",
+              fontSize: "1.2rem",
               fontWeight: 700,
-              borderBottom: "1px solid #D9CFC7",
+              color: "#1e1410",
               display: "flex",
               alignItems: "center",
               gap: 1,
@@ -284,7 +313,14 @@ export function RoomDungeonPanel({
             {dialogError !== null && (
               <Alert
                 severity="error"
-                sx={{ mb: 2, fontSize: "0.8rem" }}
+                sx={{
+                  mb: 2,
+                  fontSize: "0.8rem",
+                  bgcolor: "rgba(158,66,44,0.05)",
+                  color: "#9e422c",
+                  border: "none",
+                  "& .MuiAlert-icon": { color: "#9e422c" },
+                }}
                 onClose={() => setDialogError(null)}
               >
                 {dialogError}
@@ -292,13 +328,7 @@ export function RoomDungeonPanel({
             )}
 
             {dialogLoading && (
-              <Box
-                sx={{
-                  display: "flex",
-                  justifyContent: "center",
-                  py: 4,
-                }}
-              >
+              <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
                 <CircularProgress size={28} sx={{ color: "#a07d60" }} />
               </Box>
             )}
@@ -307,45 +337,55 @@ export function RoomDungeonPanel({
             {!dialogLoading && dialogStep === "campaign" && (
               <>
                 <Typography
-                  variant="body2"
-                  sx={{ color: "#5c4230", mb: 1.5, fontStyle: "italic" }}
+                  sx={{
+                    fontFamily: "var(--font-newsreader), serif",
+                    fontSize: "0.9rem",
+                    fontStyle: "italic",
+                    color: "#5c4230",
+                    mb: 2,
+                  }}
                 >
                   Choose a campaign to browse its dungeons.
                 </Typography>
 
                 {campaigns.length === 0 && dialogError === null && (
                   <Typography
-                    variant="body2"
-                    sx={{ color: "#C9B59C", textAlign: "center", py: 2 }}
+                    sx={{
+                      fontFamily: "var(--font-work-sans), sans-serif",
+                      fontSize: "0.875rem",
+                      color: "#bfb193",
+                      textAlign: "center",
+                      py: 2,
+                    }}
                   >
                     No campaigns found.
                   </Typography>
                 )}
 
-                <List disablePadding>
+                <List disablePadding sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
                   {campaigns.map((campaign) => (
                     <ListItemButton
                       key={campaign.campaign_id}
                       onClick={() => handleSelectCampaign(campaign.campaign_id)}
                       sx={{
-                        borderRadius: 1,
-                        mb: 0.5,
-                        border: "1px solid #D9CFC7",
-                        bgcolor: "#F9F8F6",
-                        "&:hover": { bgcolor: "#D9CFC7" },
+                        borderRadius: "0.375rem",
+                        bgcolor: "#fff8f1",
+                        "&:hover": { bgcolor: "#f1e1c1" },
                       }}
                     >
                       <ListItemText
                         primary={campaign.name}
                         secondary={campaign.world_name ?? "No world linked"}
                         primaryTypographyProps={{
-                          fontSize: "0.875rem",
-                          fontWeight: 600,
+                          fontFamily: "var(--font-newsreader), serif",
+                          fontSize: "0.95rem",
+                          fontWeight: 700,
                           color: "#1e1410",
                         }}
                         secondaryTypographyProps={{
+                          fontFamily: "var(--font-work-sans), sans-serif",
                           fontSize: "0.75rem",
-                          color: "#C9B59C",
+                          color: "#bfb193",
                         }}
                       />
                     </ListItemButton>
@@ -358,45 +398,55 @@ export function RoomDungeonPanel({
             {!dialogLoading && dialogStep === "dungeon" && (
               <>
                 <Typography
-                  variant="body2"
-                  sx={{ color: "#5c4230", mb: 1.5, fontStyle: "italic" }}
+                  sx={{
+                    fontFamily: "var(--font-newsreader), serif",
+                    fontSize: "0.9rem",
+                    fontStyle: "italic",
+                    color: "#5c4230",
+                    mb: 2,
+                  }}
                 >
                   Choose a dungeon to link to this room.
                 </Typography>
 
                 {dungeons.length === 0 && dialogError === null && (
                   <Typography
-                    variant="body2"
-                    sx={{ color: "#C9B59C", textAlign: "center", py: 2 }}
+                    sx={{
+                      fontFamily: "var(--font-work-sans), sans-serif",
+                      fontSize: "0.875rem",
+                      color: "#bfb193",
+                      textAlign: "center",
+                      py: 2,
+                    }}
                   >
                     No dungeons found for this campaign.
                   </Typography>
                 )}
 
-                <List disablePadding>
+                <List disablePadding sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
                   {dungeons.map((dungeon) => (
                     <ListItemButton
                       key={dungeon.dungeon_id}
                       onClick={() => handleSelectDungeon(dungeon.dungeon_id)}
                       sx={{
-                        borderRadius: 1,
-                        mb: 0.5,
-                        border: "1px solid #D9CFC7",
-                        bgcolor: "#F9F8F6",
-                        "&:hover": { bgcolor: "#D9CFC7" },
+                        borderRadius: "0.375rem",
+                        bgcolor: "#fff8f1",
+                        "&:hover": { bgcolor: "#f1e1c1" },
                       }}
                     >
                       <ListItemText
                         primary={dungeon.name}
                         secondary={new Date(dungeon.created_at).toLocaleDateString()}
                         primaryTypographyProps={{
-                          fontSize: "0.875rem",
-                          fontWeight: 600,
+                          fontFamily: "var(--font-newsreader), serif",
+                          fontSize: "0.95rem",
+                          fontWeight: 700,
                           color: "#1e1410",
                         }}
                         secondaryTypographyProps={{
+                          fontFamily: "var(--font-work-sans), sans-serif",
                           fontSize: "0.75rem",
-                          color: "#C9B59C",
+                          color: "#bfb193",
                         }}
                       />
                     </ListItemButton>
@@ -420,21 +470,22 @@ export function RoomDungeonPanel({
         flexShrink: 0,
         display: "flex",
         flexDirection: "column",
-        bgcolor: "#EFE9E3",
-        borderLeft: "1px solid #D9CFC7",
+        // Surface bg — lighter than the center area for tonal separation.
+        bgcolor: "#fff8f1",
         overflow: "hidden",
         transition: "width 0.25s ease",
       }}
     >
-      {/* Panel header with toggle button */}
+      {/* Panel header — "Chronicler's Ledger" title area */}
       <Box
         sx={{
           display: "flex",
           alignItems: "center",
-          px: 1,
-          py: 1.5,
-          borderBottom: "1px solid #D9CFC7",
-          minHeight: 52,
+          px: isOpen ? 3 : 1,
+          py: 2.5,
+          // Slight tonal shift for the header vs body — no explicit border.
+          bgcolor: "#fdf2df",
+          minHeight: 72,
           gap: 1,
         }}
       >
@@ -443,7 +494,11 @@ export function RoomDungeonPanel({
             size="small"
             onClick={() => setIsOpen((prev) => !prev)}
             aria-label={isOpen ? "Collapse dungeon panel" : "Expand dungeon panel"}
-            sx={{ color: "#7d5e45", flexShrink: 0 }}
+            sx={{
+              color: "#86795e",
+              flexShrink: 0,
+              "&:hover": { bgcolor: "#f1e1c1" },
+            }}
           >
             {isOpen ? (
               <ChevronRightIcon fontSize="small" />
@@ -454,23 +509,39 @@ export function RoomDungeonPanel({
         </Tooltip>
 
         {isOpen && (
-          <>
-            <MapIcon sx={{ fontSize: "1rem", color: "#a07d60", flexShrink: 0 }} />
+          <Box sx={{ minWidth: 0 }}>
             <Typography
-              variant="overline"
               sx={{
-                fontSize: "0.65rem",
-                letterSpacing: "0.14em",
-                color: "#7d5e45",
-                fontWeight: 600,
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
+                fontFamily: "var(--font-newsreader), serif",
+                fontSize: "1.4rem",
+                fontWeight: 700,
+                color: "#3a311b",
+                letterSpacing: "-0.01em",
+                lineHeight: 1.1,
               }}
             >
-              Dungeon
+              DUNGEON
             </Typography>
-          </>
+            <Typography
+              sx={{
+                fontFamily: "var(--font-work-sans), sans-serif",
+                fontSize: "0.6rem",
+                textTransform: "uppercase",
+                letterSpacing: "0.2em",
+                color: "#86795e",
+                mt: 0.25,
+              }}
+            >
+              Chronicler&apos;s Ledger
+            </Typography>
+          </Box>
+        )}
+
+        {/* Collapsed state: rotated label */}
+        {!isOpen && (
+          <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", pt: 1 }}>
+            <MapIcon sx={{ fontSize: "1rem", color: "#a07d60" }} />
+          </Box>
         )}
       </Box>
 
@@ -480,7 +551,7 @@ export function RoomDungeonPanel({
           sx={{
             flex: 1,
             overflowY: "auto",
-            p: 2,
+            p: 3,
           }}
         >
           {isLoading && (
@@ -499,7 +570,13 @@ export function RoomDungeonPanel({
           {fetchError !== null && !isLoading && (
             <Alert
               severity="error"
-              sx={{ fontSize: "0.8rem" }}
+              sx={{
+                fontSize: "0.8rem",
+                bgcolor: "rgba(158,66,44,0.05)",
+                color: "#9e422c",
+                border: "none",
+                "& .MuiAlert-icon": { color: "#9e422c" },
+              }}
               onClose={() => setFetchError(null)}
             >
               {fetchError}
@@ -507,15 +584,66 @@ export function RoomDungeonPanel({
           )}
 
           {!isLoading && fetchError === null && activeDungeon !== null && (
-            <GeneratedDungeonView dungeon={activeDungeon} />
+            <>
+              {/* DM room navigation (US-069) */}
+              {isDm && (
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    mb: 2,
+                    px: 0.5,
+                  }}
+                >
+                  <Tooltip title="Previous room">
+                    <span>
+                      <IconButton
+                        size="small"
+                        onClick={() => handleAdvanceRoom("prev")}
+                        disabled={currentRoomIndex <= 0}
+                        aria-label="Go to previous room"
+                        sx={{ color: "#7d5e45", "&:hover": { bgcolor: "#fdf2df" } }}
+                      >
+                        <ChevronLeftIcon />
+                      </IconButton>
+                    </span>
+                  </Tooltip>
+                  <Typography
+                    variant="caption"
+                    sx={{ color: "#86795e", fontWeight: 600 }}
+                  >
+                    Room {currentRoomIndex + 1} / {activeDungeon.rooms.length}
+                  </Typography>
+                  <Tooltip title="Next room">
+                    <span>
+                      <IconButton
+                        size="small"
+                        onClick={() => handleAdvanceRoom("next")}
+                        disabled={currentRoomIndex >= activeDungeon.rooms.length - 1}
+                        aria-label="Go to next room"
+                        sx={{ color: "#7d5e45", "&:hover": { bgcolor: "#fdf2df" } }}
+                      >
+                        <ChevronRightIcon />
+                      </IconButton>
+                    </span>
+                  </Tooltip>
+                </Box>
+              )}
+              <GeneratedDungeonView dungeon={activeDungeon} onRollCheck={handleRollCheck} />
+            </>
           )}
 
           {!isLoading && fetchError === null && activeDungeon === null && (
             <Typography
-              variant="body2"
-              color="text.disabled"
-              fontStyle="italic"
-              sx={{ textAlign: "center", mt: 4 }}
+              sx={{
+                fontFamily: "var(--font-newsreader), serif",
+                fontSize: "0.9rem",
+                fontStyle: "italic",
+                color: "#bfb193",
+                textAlign: "center",
+                mt: 4,
+              }}
             >
               No dungeon data available.
             </Typography>
