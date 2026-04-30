@@ -1,14 +1,42 @@
 "use client";
 
 import Box from "@mui/material/Box";
-import ButtonGroup from "@mui/material/ButtonGroup";
-import Button from "@mui/material/Button";
 import Typography from "@mui/material/Typography";
+import ChangeHistoryIcon from "@mui/icons-material/ChangeHistory";
+import CropSquareIcon from "@mui/icons-material/CropSquare";
+import DiamondIcon from "@mui/icons-material/Diamond";
+import PentagonIcon from "@mui/icons-material/Pentagon";
+import HexagonIcon from "@mui/icons-material/Hexagon";
+import StarOutlineIcon from "@mui/icons-material/StarOutline";
 import type { DiceSides } from "@/domains/room/types";
 import type { UseGameSocketReturn } from "@/domains/room/hooks/useGameSocket";
 
 /** All die face counts available for rolling, in display order. */
 const DICE: readonly DiceSides[] = [4, 6, 8, 10, 12, 20] as const;
+
+/**
+ * Returns a geometric icon representing the die's physical shape.
+ * Maps each die size to its closest polygon equivalent.
+ * @param sides - The number of sides on the die.
+ * @returns A MUI SvgIcon element.
+ */
+function DiceIcon({ sides }: { readonly sides: DiceSides }): React.ReactElement {
+  const iconSx = { fontSize: "1.1rem", color: "#725a42" };
+  switch (sides) {
+    case 4:
+      return <ChangeHistoryIcon sx={iconSx} />;
+    case 6:
+      return <CropSquareIcon sx={iconSx} />;
+    case 8:
+      return <DiamondIcon sx={iconSx} />;
+    case 10:
+      return <PentagonIcon sx={iconSx} />;
+    case 12:
+      return <HexagonIcon sx={iconSx} />;
+    case 20:
+      return <StarOutlineIcon sx={iconSx} />;
+  }
+}
 
 /** Props for the DiceRoller component. */
 interface DiceRollerProps {
@@ -18,7 +46,9 @@ interface DiceRollerProps {
 
 /**
  * Horizontal row of die buttons (d4 through d20).
+ * Each button shows a geometric polygon icon above the die label.
  * Clicking a button sends a dice_roll event to the server via WebSocket.
+ * Background uses surface-container-high (#f5e7cb) to separate from the event feed.
  */
 export function DiceRoller({ send }: DiceRollerProps): React.ReactElement {
   function handleRoll(sides: DiceSides): void {
@@ -30,49 +60,67 @@ export function DiceRoller({ send }: DiceRollerProps): React.ReactElement {
       sx={{
         display: "flex",
         alignItems: "center",
-        gap: 1.5,
+        gap: 1,
         px: 3,
         py: 1.5,
-        borderTop: "1px solid #D9CFC7",
-        bgcolor: "#F9F8F6",
+        bgcolor: "#f5e7cb",
       }}
     >
-      <Typography
-        variant="caption"
+      {/* Grouped die buttons with shared background container */}
+      <Box
         sx={{
-          color: "#7d5e45",
-          fontWeight: 600,
-          letterSpacing: "0.08em",
-          textTransform: "uppercase",
-          flexShrink: 0,
-          fontSize: "0.65rem",
+          display: "flex",
+          alignItems: "center",
+          bgcolor: "#f1e1c1",
+          borderRadius: "0.5rem",
+          p: 0.75,
+          gap: 0.25,
         }}
       >
-        Roll
-      </Typography>
-      <ButtonGroup size="small" variant="outlined" aria-label="Dice roller">
         {DICE.map((sides) => (
-          <Button
+          <Box
             key={sides}
+            component="button"
             onClick={() => handleRoll(sides)}
             sx={{
-              textTransform: "none",
-              fontWeight: 600,
-              fontSize: "0.8rem",
-              color: "#5c4230",
-              borderColor: "#C9B59C",
-              minWidth: 44,
+              width: 44,
+              height: 44,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 0.25,
+              bgcolor: "transparent",
+              border: "none",
+              borderRadius: "0.375rem",
+              cursor: "pointer",
+              transition: "background-color 150ms ease",
               "&:hover": {
-                bgcolor: "#a07d60",
-                color: "#F9F8F6",
-                borderColor: "#a07d60",
+                bgcolor: "#fedcbe",
+                "& .dice-label": { color: "#725a42" },
               },
+              "&:active": { transform: "scale(0.95)" },
             }}
           >
-            d{sides}
-          </Button>
+            <Typography
+              className="dice-label"
+              sx={{
+                fontFamily: "var(--font-work-sans), sans-serif",
+                fontSize: "0.6rem",
+                fontWeight: 700,
+                textTransform: "uppercase",
+                letterSpacing: "0.05em",
+                color: "#86795e",
+                lineHeight: 1,
+                transition: "color 150ms ease",
+              }}
+            >
+              d{sides}
+            </Typography>
+            <DiceIcon sides={sides} />
+          </Box>
         ))}
-      </ButtonGroup>
+      </Box>
     </Box>
   );
 }

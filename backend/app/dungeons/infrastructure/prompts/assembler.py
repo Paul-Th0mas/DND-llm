@@ -33,9 +33,70 @@ _JSON_SCHEMA = """
       "description": "<string — 2-3 sentences describing the room>",
       "enemy_names": ["<name>"],
       "npc_names": [],
-      "special_notes": "<string or null>"
+      "mechanics": [
+        {
+          "trigger": {
+            "trigger_action": "<string — player action that activates this mechanic, e.g. investigate, attack, enter>",
+            "check_stat": "<string or null — e.g. Investigation, Perception, Athletics>",
+            "dc": "<integer 1-30 or null>"
+          },
+          "effects": [
+            {
+              "effect_type": "<DAMAGE|HEAL|APPLY_STATUS|GRANT_LOOT|SPAWN_ENEMY|UNLOCK_PATH|NONE>",
+              "value": "<integer or null — damage/heal amount>",
+              "status": "<string or null — status name for APPLY_STATUS>",
+              "item_id": "<string or null — item identifier for GRANT_LOOT>"
+            }
+          ],
+          "description": "<string — human-readable description of this mechanic>"
+        }
+      ],
+      "loot": [
+        {
+          "item_id": "<string — snake_case identifier>",
+          "name": "<string — display name>",
+          "quantity": "<integer >= 1>"
+        }
+      ]
     }
   ]
+}
+"""
+
+# One-shot example showing how to translate a room narrative into the
+# required structured format. Placed before the schema to prime the LLM.
+_ONE_SHOT_EXAMPLE = """The following example shows how to translate a room narrative into the required structured format.
+
+NARRATIVE: "A pressure plate trap hides near the entrance. A successful DC 15 Investigation
+check reveals it. On failure, poison needles fire from the walls dealing 1d6 damage."
+
+STRUCTURED OUTPUT for that room:
+{
+  "index": 0,
+  "room_type": "COMBAT",
+  "name": "The Needle Hall",
+  "description": "A long corridor scarred by old battles. The floor is suspiciously clean near the entrance.",
+  "enemy_names": ["Skeleton Archer"],
+  "npc_names": [],
+  "mechanics": [
+    {
+      "trigger": {
+        "trigger_action": "investigate",
+        "check_stat": "Investigation",
+        "dc": 15
+      },
+      "effects": [
+        {
+          "effect_type": "DAMAGE",
+          "value": 6,
+          "status": null,
+          "item_id": null
+        }
+      ],
+      "description": "Pressure plate trap near the entrance. DC 15 Investigation to spot. Failure triggers poison needles for 1d6 damage."
+    }
+  ],
+  "loot": []
 }
 """
 
@@ -49,7 +110,8 @@ class PromptAssembler:
       2. Campaign context (tone, themes, level range, content restrictions)
       3. Session parameters (room count, party size, difficulty, DM notes)
       4. Room sequence instructions (first=COMBAT, last=BOSS, etc.)
-      5. JSON output schema
+      5. One-shot example — shows the expected structured mechanics format
+      6. JSON output schema
     """
 
     def build(
@@ -108,6 +170,15 @@ Difficulty: {difficulty}
 - Include exactly one SHOP room and one REST room in the middle sections
 - All other rooms should be COMBAT, TREASURE, or EVENT
 - The BOSS room should feature one of the world's notable bosses or a lieutenant
+
+=== ROOM MECHANICS RULES ===
+- COMBAT, EVENT, BOSS rooms: mechanics must have at least one entry
+- TREASURE rooms: mechanics may be empty, loot must have at least one entry
+- REST rooms: mechanics may have one entry with effect_type HEAL or NONE; loot must be empty
+- SHOP rooms: mechanics and loot must both be empty arrays
+
+=== ONE-SHOT EXAMPLE ===
+{_ONE_SHOT_EXAMPLE}
 
 === OUTPUT FORMAT ===
 Return exactly {settings.room_count} rooms.

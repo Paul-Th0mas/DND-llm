@@ -9,12 +9,16 @@ import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
 import CircularProgress from "@mui/material/CircularProgress";
 import Divider from "@mui/material/Divider";
+import Skeleton from "@mui/material/Skeleton";
 import Typography from "@mui/material/Typography";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import { DmOnlyRoute } from "@/shared/components/DmOnlyRoute";
+import { ProtectedRoute } from "@/shared/components/ProtectedRoute";
 import { getCampaignById, listCampaignDungeons } from "@/domains/campaign/services/campaign.service";
 import { getWorldById } from "@/domains/world/services/world.service";
 import { StartSessionWizard } from "@/domains/campaign/components/StartSessionWizard";
+import { CampaignPartyRoster } from "@/domains/character/components/CampaignPartyRoster";
+import { CharacterPickerModal } from "@/domains/character/components/CharacterPickerModal";
+import { useAuthStore, selectUser } from "@/shared/store/auth.store";
 import { ApiError } from "@/lib/api/client";
 import type { CampaignDetail } from "@/domains/campaign/types";
 import type { WorldDetail } from "@/domains/world/types";
@@ -50,12 +54,24 @@ export function CampaignDetailPageContent({
   campaignId,
 }: CampaignDetailPageContentProps): React.ReactElement {
   const router = useRouter();
+  const user = useAuthStore(selectUser);
+  const isDm = user?.role === "dm";
+
   const [campaign, setCampaign] = useState<CampaignDetail | null>(null);
   const [world, setWorld] = useState<WorldDetail | null>(null);
-  const [dungeons, setDungeons] = useState<readonly DungeonSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Dungeon list has its own loading/error state so it doesn't block the rest
+  // of the page (AC3: skeleton in section only; AC5: isolated error).
+  const [dungeons, setDungeons] = useState<readonly DungeonSummary[]>([]);
+  const [dungeonsLoading, setDungeonsLoading] = useState(true);
+  const [dungeonsError, setDungeonsError] = useState<string | null>(null);
+
   const [wizardOpen, setWizardOpen] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  // Roster key incremented after a successful link to force CampaignPartyRoster to re-fetch.
+  const [rosterKey, setRosterKey] = useState(0);
 
   useEffect(() => {
     if (!campaignId) return;
@@ -63,24 +79,19 @@ export function CampaignDetailPageContent({
     let cancelled = false;
     const token = localStorage.getItem("access_token") ?? "";
 
-    async function fetchData(): Promise<void> {
+    async function fetchCampaignAndWorld(): Promise<void> {
       setIsLoading(true);
       setError(null);
 
       try {
-        // Fetch campaign, world, and dungeons in parallel.
         const campaignData = await getCampaignById(campaignId, token);
         if (cancelled) return;
 
-        const [worldData, dungeonList] = await Promise.all([
-          getWorldById(campaignData.world_id),
-          listCampaignDungeons(campaignId, token),
-        ]);
+        const worldData = await getWorldById(campaignData.world_id);
 
         if (!cancelled) {
           setCampaign(campaignData);
           setWorld(worldData);
-          setDungeons(dungeonList.slice(0, MAX_PAST_DUNGEONS));
         }
       } catch (err) {
         if (!cancelled) {
@@ -101,7 +112,27 @@ export function CampaignDetailPageContent({
       }
     }
 
-    void fetchData();
+    async function fetchDungeons(): Promise<void> {
+      setDungeonsLoading(true);
+      setDungeonsError(null);
+
+      try {
+        const list = await listCampaignDungeons(campaignId, token);
+        if (!cancelled) {
+          setDungeons(list.slice(0, MAX_PAST_DUNGEONS));
+        }
+      } catch {
+        if (!cancelled) {
+          setDungeonsError("Failed to load past dungeons.");
+        }
+      } finally {
+        if (!cancelled) setDungeonsLoading(false);
+      }
+    }
+
+    // Run both fetches in parallel — dungeon list does not block campaign display.
+    void fetchCampaignAndWorld();
+    void fetchDungeons();
 
     return () => {
       cancelled = true;
@@ -112,17 +143,22 @@ export function CampaignDetailPageContent({
     // Refresh the dungeon list after a successful session start so the new
     // dungeon and room appear immediately without a full page reload.
     const token = localStorage.getItem("access_token") ?? "";
+    setDungeonsLoading(true);
+    setDungeonsError(null);
     listCampaignDungeons(campaignId, token)
       .then((list) => {
         setDungeons(list.slice(0, MAX_PAST_DUNGEONS));
       })
       .catch(() => {
-        // Silently ignore — the page data is still usable.
+        setDungeonsError("Failed to refresh past dungeons.");
+      })
+      .finally(() => {
+        setDungeonsLoading(false);
       });
   }
 
   return (
-    <DmOnlyRoute>
+    <ProtectedRoute>
       <Box sx={{ minHeight: "100vh", bgcolor: "background.default" }}>
         {/* Page header */}
         <Box
@@ -152,21 +188,41 @@ export function CampaignDetailPageContent({
             </Typography>
           </Box>
 
-          {campaign !== null && (
-            <Button
-              variant="contained"
-              onClick={() => setWizardOpen(true)}
-              sx={{
-                textTransform: "none",
-                fontWeight: 600,
-                borderRadius: 2,
-                bgcolor: "#7d5e45",
-                "&:hover": { bgcolor: "#5c4230" },
-              }}
-            >
-              Start Session
-            </Button>
-          )}
+          <Box sx={{ display: "flex", gap: 1 }}>
+            {/* DM-only: start a new session */}
+            {isDm && campaign !== null && (
+              <Button
+                variant="contained"
+                onClick={() => setWizardOpen(true)}
+                sx={{
+                  textTransform: "none",
+                  fontWeight: 600,
+                  borderRadius: 2,
+                  bgcolor: "#7d5e45",
+                  "&:hover": { bgcolor: "#5c4230" },
+                }}
+              >
+                Start Session
+              </Button>
+            )}
+
+            {/* Player-only: link a character to this campaign */}
+            {!isDm && campaign !== null && (
+              <Button
+                variant="contained"
+                onClick={() => setPickerOpen(true)}
+                sx={{
+                  textTransform: "none",
+                  fontWeight: 600,
+                  borderRadius: 2,
+                  bgcolor: "#a07d60",
+                  "&:hover": { bgcolor: "#7d5e45" },
+                }}
+              >
+                Join with Character
+              </Button>
+            )}
+          </Box>
         </Box>
 
         {/* Content */}
@@ -263,17 +319,53 @@ export function CampaignDetailPageContent({
                 </>
               )}
 
-              {/* Past Dungeons */}
+              {/* Party Roster — DM sees full roster; player sees their own joined status */}
               <Divider />
               <Box>
                 <Typography variant="subtitle1" fontWeight={600} gutterBottom>
-                  Past Dungeons ({dungeons.length})
+                  Party
                 </Typography>
-                {dungeons.length === 0 ? (
+                {isDm && (
+                  <CampaignPartyRoster
+                    key={rosterKey}
+                    campaignId={campaignId}
+                    token={localStorage.getItem("access_token") ?? ""}
+                  />
+                )}
+                {!isDm && (
+                  <Typography variant="body2" color="text.secondary">
+                    Use the "Join with Character" button to link one of your characters to this
+                    campaign.
+                  </Typography>
+                )}
+              </Box>
+
+              {/* Past Dungeons — loading and errors are isolated to this section (AC3, AC5) */}
+              <Divider />
+              <Box>
+                <Typography variant="subtitle1" fontWeight={600} gutterBottom>
+                  Past Dungeons {!dungeonsLoading && `(${dungeons.length})`}
+                </Typography>
+
+                {dungeonsLoading && (
+                  <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+                    <Skeleton variant="rounded" height={72} />
+                    <Skeleton variant="rounded" height={72} />
+                    <Skeleton variant="rounded" height={72} />
+                  </Box>
+                )}
+
+                {!dungeonsLoading && dungeonsError !== null && (
+                  <Alert severity="error" sx={{ mt: 1 }}>{dungeonsError}</Alert>
+                )}
+
+                {!dungeonsLoading && dungeonsError === null && dungeons.length === 0 && (
                   <Typography variant="body2" color="text.secondary">
                     No dungeons generated yet. Use the Start Session button to create one.
                   </Typography>
-                ) : (
+                )}
+
+                {!dungeonsLoading && dungeonsError === null && dungeons.length > 0 && (
                   <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
                     {dungeons.map((dungeon) => (
                       <Box
@@ -381,7 +473,7 @@ export function CampaignDetailPageContent({
           )}
         </Box>
 
-        {/* Start Session Wizard */}
+        {/* Start Session Wizard — DM only */}
         <StartSessionWizard
           open={wizardOpen}
           campaignId={campaignId}
@@ -390,7 +482,20 @@ export function CampaignDetailPageContent({
             handleSessionStarted();
           }}
         />
+
+        {/* Character Picker Modal — player only */}
+        <CharacterPickerModal
+          open={pickerOpen}
+          campaignId={campaignId}
+          token={localStorage.getItem("access_token") ?? ""}
+          onClose={() => setPickerOpen(false)}
+          onLinked={() => {
+            setPickerOpen(false);
+            // Bump the roster key so DMs see the update if they share the page.
+            setRosterKey((k) => k + 1);
+          }}
+        />
       </Box>
-    </DmOnlyRoute>
+    </ProtectedRoute>
   );
 }

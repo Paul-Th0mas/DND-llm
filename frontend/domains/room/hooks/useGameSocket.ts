@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useCallback } from "react";
 import { useRoomStore } from "@/domains/room/store/room.store";
+import { useDungeonStore } from "@/domains/dungeon/store/dungeon.store";
 import type { GameEvent } from "@/domains/room/types";
 
 // WebSocket server base URL.
@@ -41,8 +42,15 @@ export function useGameSocket(
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const retryDelayRef = useRef<number>(INITIAL_RETRY_MS);
 
-  const { setConnected, setPlayers, addPlayer, removePlayer, addEvent } =
-    useRoomStore.getState();
+  const {
+    setConnected,
+    setPlayers,
+    addPlayer,
+    removePlayer,
+    addEvent,
+    setPlayerHp,
+    setAllPlayerHp,
+  } = useRoomStore.getState();
 
   const connect = useCallback((): void => {
     const url = `${WS_BASE}/api/v1/ws/${roomId}?token=${roomToken}`;
@@ -71,17 +79,28 @@ export function useGameSocket(
 
       switch (gameEvent.type) {
         case "room_state":
-          // Server sends only IDs; seed the player list with placeholder names
-          // until player_joined events enrich them.
+          // Players now come as objects with user_id, username, connected.
           setPlayers(
-            gameEvent.players.map((id) => ({ id, name: id, role: "player" }))
+            gameEvent.players.map((p) => ({
+              id: p.user_id,
+              name: p.username,
+              role: "player" as const,
+            }))
           );
+          // Restore HP state from the room_state payload.
+          setAllPlayerHp(gameEvent.player_hp);
+          // Restore current room index if the session is already running.
+          if (gameEvent.current_room_index !== null) {
+            useDungeonStore
+              .getState()
+              .setCurrentRoomIndex(gameEvent.current_room_index);
+          }
           break;
 
         case "player_joined":
           addPlayer({
             id: gameEvent.user_id,
-            name: gameEvent.name ?? gameEvent.user_id,
+            name: gameEvent.username,
             role: gameEvent.role,
           });
           break;
@@ -90,8 +109,24 @@ export function useGameSocket(
           removePlayer(gameEvent.user_id);
           break;
 
+        case "room_advanced":
+          useDungeonStore.getState().setCurrentRoomIndex(gameEvent.room_index);
+          addEvent(gameEvent);
+          break;
+
+        case "quest_stage_advanced":
+          useDungeonStore.getState().markQuestStageComplete(gameEvent.stage_index);
+          addEvent(gameEvent);
+          break;
+
+        case "permission_denied":
+        case "validation_error":
+          // Map to error event shape for the event feed.
+          addEvent({ type: "error", detail: gameEvent.detail });
+          break;
+
         default:
-          // dice_roll, chat_message, dm_announcement, error — append to feed.
+          // dice_roll, chat_message, dm_announcement, error, room_event_outcome — append to feed.
           addEvent(gameEvent);
           break;
       }

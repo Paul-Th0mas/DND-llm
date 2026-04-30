@@ -1,12 +1,18 @@
+import json
 import logging
 import uuid
+from datetime import datetime, timezone
 
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from app.rooms.domain.models import InviteCode, Room, RoomPlayer
-from app.rooms.domain.repositories import RoomPlayerRepository, RoomRepository
-from app.rooms.infrastructure.orm_models import RoomORM, RoomPlayerORM
+from app.rooms.domain.models import InviteCode, PlayerState, Room, RoomPlayer
+from app.rooms.domain.repositories import (
+    PlayerStateRepository,
+    RoomPlayerRepository,
+    RoomRepository,
+)
+from app.rooms.infrastructure.orm_models import RoomORM, RoomPlayerORM, RoomPlayerStateORM
 
 logger = logging.getLogger(__name__)
 
@@ -138,3 +144,93 @@ class SqlAlchemyRoomPlayerRepository(RoomPlayerRepository):
     def count(self, room_id: uuid.UUID) -> int:
         rows = self.get_by_room(room_id)
         return len(rows)
+
+
+class SqlAlchemyPlayerStateRepository(PlayerStateRepository):
+    """
+    Persists per-player combat state to the room_player_state table (US-080).
+    All writes use merge() so repeated calls for the same (room_id, user_id)
+    pair are idempotent upserts rather than inserts.
+    """
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def upsert(
+        self,
+        room_id: uuid.UUID,
+        user_id: uuid.UUID,
+        current_hp: int,
+        max_hp: int,
+        downed: bool,
+        status_effects: list[str],
+    ) -> None:
+        logger.debug(
+            "PlayerStateRepository.upsert: room=%s user=%s hp=%d/%d downed=%s",
+            room_id,
+            user_id,
+            current_hp,
+            max_hp,
+            downed,
+        )
+        orm = RoomPlayerStateORM(
+            room_id=room_id,
+            user_id=user_id,
+            current_hp=current_hp,
+            max_hp=max_hp,
+            downed=downed,
+            # Serialize status effects list to JSON string for TEXT column storage.
+            status_effects=json.dumps(status_effects),
+            updated_at=datetime.now(timezone.utc),
+        )
+        self._session.merge(orm)
+        self._session.flush()
+        logger.info(
+            "PlayerStateRepository.upsert: persisted hp=%d/%d for user=%s room=%s",
+            current_hp,
+            max_hp,
+            user_id,
+            room_id,
+        )
+
+    def get_by_room(self, room_id: uuid.UUID) -> list[PlayerState]:
+        logger.debug("PlayerStateRepository.get_by_room: room=%s", room_id)
+        stmt = select(RoomPlayerStateORM).where(
+            RoomPlayerStateORM.room_id == room_id
+        )
+        rows = self._session.execute(stmt).scalars().all()
+        return [self._to_domain(row) for row in rows]
+
+    def get_by_player(
+        self, room_id: uuid.UUID, user_id: uuid.UUID
+    ) -> PlayerState | None:
+        logger.debug(
+            "PlayerStateRepository.get_by_player: room=%s user=%s", room_id, user_id
+        )
+        stmt = select(RoomPlayerStateORM).where(
+            RoomPlayerStateORM.room_id == room_id,
+            RoomPlayerStateORM.user_id == user_id,
+        )
+        row = self._session.execute(stmt).scalar_one_or_none()
+        return self._to_domain(row) if row is not None else None
+
+    @staticmethod
+    def _to_domain(orm: RoomPlayerStateORM) -> PlayerState:
+        # Deserialize status_effects from JSON string; treat null/invalid as [].
+        try:
+            raw = json.loads(orm.status_effects)
+            effects: list[str] = (
+                [s for s in raw if isinstance(s, str)]
+                if isinstance(raw, list)
+                else []
+            )
+        except (json.JSONDecodeError, TypeError):
+            effects = []
+        return PlayerState(
+            room_id=orm.room_id,
+            user_id=orm.user_id,
+            current_hp=orm.current_hp,
+            max_hp=orm.max_hp,
+            downed=orm.downed,
+            status_effects=effects,
+        )

@@ -1,13 +1,13 @@
 """
 Pydantic DTOs for the dungeons bounded context.
 
-These are Data Transfer Objects — they live at the application layer boundary
+These are Data Transfer Objects -- they live at the application layer boundary
 between the API (HTTP) and the domain. They are NOT domain models.
 
-Inbound:  GenerateDungeonRequest  → converted to DungeonSettings domain value object
-Outbound: DungeonCreatedResponse  ← summary after POST (creation)
-          DungeonSummaryResponse  ← list item for GET /campaigns/{id}/dungeons
-          DungeonDetailResponse   ← full detail for GET /dungeons/{id}
+Inbound:  GenerateDungeonRequest  -> converted to DungeonSettings domain value object
+Outbound: DungeonCreatedResponse  <- summary after POST (creation)
+          DungeonSummaryResponse  <- list item for GET /campaigns/{id}/dungeons
+          DungeonDetailResponse   <- full detail for GET /dungeons/{id}
 """
 
 import logging
@@ -22,6 +22,14 @@ from app.dungeons.domain.models import (
     DungeonQuest,
     DungeonRoom,
     DungeonSettings,
+    EffectType,
+    EnemyData,
+    GameEffect,
+    LootItem,
+    NpcData,
+    QuestMetadata,
+    RoomMechanics,
+    TriggerData,
     PARTY_SIZE_MAX,
     PARTY_SIZE_MIN,
     ROOM_COUNT_MAX,
@@ -69,7 +77,180 @@ class GenerateDungeonRequest(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Outbound DTOs
+# Structured outbound DTOs (US-063 to US-067)
+# ---------------------------------------------------------------------------
+
+
+class EnemyDataResponse(BaseModel):
+    """Outbound DTO for structured enemy data on a room."""
+
+    initial: list[str]
+    reinforcements: list[str]
+    trigger_condition: str | None = None
+    environmental_hazards: str | None = None
+    boss: str | None = None
+    special_attacks: list[str]
+
+    @classmethod
+    def from_domain(cls, enemy: EnemyData) -> "EnemyDataResponse":
+        """Convert an EnemyData value object into this response DTO."""
+        return cls(
+            initial=list(enemy.initial),
+            reinforcements=list(enemy.reinforcements),
+            trigger_condition=enemy.trigger_condition,
+            environmental_hazards=enemy.environmental_hazards,
+            boss=enemy.boss,
+            special_attacks=list(enemy.special_attacks),
+        )
+
+
+class SkillCheckResponse(BaseModel):
+    """Outbound DTO for a single skill check."""
+
+    type: str
+    dc: int
+    on_success: str
+    on_failure: str | None = None
+
+
+class TriggerDataResponse(BaseModel):
+    """Outbound DTO for the trigger condition of a game effect."""
+
+    trigger_action: str
+    check_stat: str | None = None
+    dc: int | None = None
+
+    @classmethod
+    def from_domain(cls, trigger: TriggerData) -> "TriggerDataResponse":
+        """Convert a TriggerData value object into this response DTO."""
+        return cls(
+            trigger_action=trigger.trigger_action,
+            check_stat=trigger.check_stat,
+            dc=trigger.dc,
+        )
+
+
+class GameEffectResponse(BaseModel):
+    """Outbound DTO for a discrete game effect attached to a room."""
+
+    effect_type: EffectType
+    trigger: TriggerDataResponse
+    value: int | None = None
+    status: str | None = None
+    item_id: str | None = None
+    description: str = ""
+
+    @classmethod
+    def from_domain(cls, ge: GameEffect) -> "GameEffectResponse":
+        """Convert a GameEffect value object into this response DTO."""
+        return cls(
+            effect_type=ge.effect_type,
+            trigger=TriggerDataResponse.from_domain(ge.trigger),
+            value=ge.value,
+            status=ge.status,
+            item_id=ge.item_id,
+            description=ge.description,
+        )
+
+
+class RoomMechanicsResponse(BaseModel):
+    """Outbound DTO for structured room mechanics."""
+
+    skill_checks: list[SkillCheckResponse]
+    rest_benefit: str | None = None
+    victory_items: list[str]
+    game_effects: list[GameEffectResponse]
+
+    @classmethod
+    def from_domain(cls, mechanics: RoomMechanics) -> "RoomMechanicsResponse":
+        """Convert a RoomMechanics value object into this response DTO."""
+        return cls(
+            skill_checks=[
+                SkillCheckResponse(
+                    type=sc.type,
+                    dc=sc.dc,
+                    on_success=sc.on_success,
+                    on_failure=sc.on_failure,
+                )
+                for sc in mechanics.skill_checks
+            ],
+            rest_benefit=mechanics.rest_benefit,
+            victory_items=list(mechanics.victory_items),
+            game_effects=[
+                GameEffectResponse.from_domain(ge) for ge in mechanics.game_effects
+            ],
+        )
+
+
+class LootItemResponse(BaseModel):
+    """Outbound DTO for a single loot table entry."""
+
+    item: str
+    quantity: int
+    value: str | None = None
+    rarity: str | None = None
+
+    @classmethod
+    def from_domain(cls, loot: LootItem) -> "LootItemResponse":
+        """Convert a LootItem value object into this response DTO."""
+        return cls(
+            item=loot.item,
+            quantity=loot.quantity,
+            value=loot.value,
+            rarity=loot.rarity,
+        )
+
+
+class NpcInventoryItemResponse(BaseModel):
+    """Outbound DTO for a single NPC inventory item."""
+
+    item: str
+    price: int
+
+
+class NpcDataResponse(BaseModel):
+    """Outbound DTO for structured NPC data on a room."""
+
+    name: str
+    role: str
+    inventory: list[NpcInventoryItemResponse]
+    interaction_dc: dict[str, object] | None = None
+
+    @classmethod
+    def from_domain(cls, npc: NpcData) -> "NpcDataResponse":
+        """Convert an NpcData value object into this response DTO."""
+        return cls(
+            name=npc.name,
+            role=npc.role,
+            inventory=[
+                NpcInventoryItemResponse(item=inv.item, price=inv.price)
+                for inv in npc.inventory
+            ],
+            interaction_dc=npc.interaction_dc,
+        )
+
+
+class QuestMetadataResponse(BaseModel):
+    """Outbound DTO for session-wide quest metadata (US-063)."""
+
+    name: str
+    recommended_level: int
+    environment: str
+    global_modifiers: str
+
+    @classmethod
+    def from_domain(cls, qm: QuestMetadata) -> "QuestMetadataResponse":
+        """Convert a QuestMetadata value object into this response DTO."""
+        return cls(
+            name=qm.name,
+            recommended_level=qm.recommended_level,
+            environment=qm.environment,
+            global_modifiers=qm.global_modifiers,
+        )
+
+
+# ---------------------------------------------------------------------------
+# Room and Quest outbound DTOs
 # ---------------------------------------------------------------------------
 
 
@@ -80,9 +261,14 @@ class DungeonRoomResponse(BaseModel):
     room_type: RoomType
     name: str
     description: str
+    # Legacy flat fields kept for backward compatibility.
     enemy_names: list[str]
     npc_names: list[str]
-    special_notes: str | None = None
+    # Structured fields (US-063 to US-071).
+    enemies: EnemyDataResponse | None = None
+    mechanics: RoomMechanicsResponse | None = None
+    loot_table: list[LootItemResponse] | None = None
+    npc_data: list[NpcDataResponse] | None = None
 
     @classmethod
     def from_domain(cls, room: DungeonRoom) -> "DungeonRoomResponse":
@@ -94,7 +280,26 @@ class DungeonRoomResponse(BaseModel):
             description=room.description,
             enemy_names=list(room.enemy_names),
             npc_names=list(room.npc_names),
-            special_notes=room.special_notes,
+            enemies=(
+                EnemyDataResponse.from_domain(room.enemies)
+                if room.enemies is not None
+                else None
+            ),
+            mechanics=(
+                RoomMechanicsResponse.from_domain(room.mechanics)
+                if room.mechanics is not None
+                else None
+            ),
+            loot_table=(
+                [LootItemResponse.from_domain(li) for li in room.loot_table]
+                if room.loot_table is not None
+                else None
+            ),
+            npc_data=(
+                [NpcDataResponse.from_domain(nd) for nd in room.npc_data]
+                if room.npc_data is not None
+                else None
+            ),
         )
 
 
@@ -113,6 +318,11 @@ class DungeonQuestResponse(BaseModel):
             description=quest.description,
             stages=list(quest.stages),
         )
+
+
+# ---------------------------------------------------------------------------
+# Top-level outbound DTOs
+# ---------------------------------------------------------------------------
 
 
 class DungeonCreatedResponse(BaseModel):
@@ -143,7 +353,7 @@ class DungeonCreatedResponse(BaseModel):
             premise=dungeon.premise,
             room_count=len(dungeon.rooms),
             quest_name=dungeon.quest.name,
-            next_step=f"/api/v1/rooms",
+            next_step="/api/v1/rooms",
         )
 
 
@@ -225,6 +435,9 @@ class DungeonDetailResponse(BaseModel):
     rooms: list[DungeonRoomResponse]
     quest: DungeonQuestResponse
     created_at: datetime
+    quest_metadata: QuestMetadataResponse | None = None
+    current_room_index: int = 0
+    completed_stage_indices: list[int] = Field(default_factory=list)
 
     @classmethod
     def from_domain(cls, dungeon: Dungeon) -> "DungeonDetailResponse":
@@ -243,4 +456,11 @@ class DungeonDetailResponse(BaseModel):
             rooms=[DungeonRoomResponse.from_domain(r) for r in dungeon.rooms],
             quest=DungeonQuestResponse.from_domain(dungeon.quest),
             created_at=dungeon.created_at,
+            quest_metadata=(
+                QuestMetadataResponse.from_domain(dungeon.quest_metadata)
+                if dungeon.quest_metadata is not None
+                else None
+            ),
+            current_room_index=dungeon.current_room_index,
+            completed_stage_indices=list(dungeon.completed_stage_indices),
         )

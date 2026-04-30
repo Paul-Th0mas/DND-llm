@@ -9,7 +9,7 @@ import uuid
 from abc import ABC, abstractmethod
 
 from app.core.exceptions import DomainError, NotFoundError
-from app.rooms.domain.models import Room, RoomPlayer
+from app.rooms.domain.models import PlayerState, Room, RoomPlayer
 
 
 # ---------------------------------------------------------------------------
@@ -83,3 +83,35 @@ class RoomPlayerRepository(ABC):
 
     @abstractmethod
     def count(self, room_id: uuid.UUID) -> int: ...
+
+
+class PlayerStateRepository(ABC):
+    """
+    Abstract repository for persisting player combat state per room session.
+    Implementations upsert on every HP change so state survives server restarts.
+    """
+
+    @abstractmethod
+    def upsert(
+        self,
+        room_id: uuid.UUID,
+        user_id: uuid.UUID,
+        current_hp: int,
+        max_hp: int,
+        downed: bool,
+        status_effects: list[str],
+    ) -> None:
+        """Insert or update a player's combat state for this room (upsert)."""
+        ...
+
+    @abstractmethod
+    def get_by_room(self, room_id: uuid.UUID) -> list[PlayerState]:
+        """Return all player states for the given room."""
+        ...
+
+    @abstractmethod
+    def get_by_player(
+        self, room_id: uuid.UUID, user_id: uuid.UUID
+    ) -> PlayerState | None:
+        """Return one player's state, or None if no record exists."""
+        ...

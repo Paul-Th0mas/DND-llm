@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
-import type { RoomState, RoomActions } from "./room.store.types";
+import type { RoomState, RoomActions, PlayerHpEntry } from "./room.store.types";
 import type { Room, Player, GameEvent } from "@/domains/room/types";
 
 // Combined store type merging state shape and actions.
@@ -20,6 +20,7 @@ export const useRoomStore = create<RoomStore>()(
       players: [],
       events: [],
       isConnected: false,
+      playerHp: new Map<string, PlayerHpEntry>(),
 
       setRoom: (room: Room, roomToken: string) =>
         set(
@@ -58,6 +59,38 @@ export const useRoomStore = create<RoomStore>()(
           "room/addEvent"
         ),
 
+      replaceEvents: (events: readonly GameEvent[]) =>
+        set({ events }, false, "room/replaceEvents"),
+
+      setPlayerHp: (userId: string, hp: PlayerHpEntry) =>
+        set(
+          (state) => {
+            const next = new Map(state.playerHp);
+            next.set(userId, hp);
+            return { playerHp: next };
+          },
+          false,
+          "room/setPlayerHp"
+        ),
+
+      setAllPlayerHp: (entries) =>
+        set(
+          () => {
+            const next = new Map<string, PlayerHpEntry>();
+            for (const entry of entries) {
+              next.set(entry.user_id, {
+                current_hp: entry.current_hp,
+                max_hp: entry.max_hp,
+                downed: entry.downed,
+                status_effects: entry.status_effects,
+              });
+            }
+            return { playerHp: next };
+          },
+          false,
+          "room/setAllPlayerHp"
+        ),
+
       setConnected: (isConnected: boolean) =>
         set({ isConnected }, false, "room/setConnected"),
 
@@ -73,6 +106,7 @@ export const useRoomStore = create<RoomStore>()(
             players: [],
             events: [],
             isConnected: false,
+            playerHp: new Map<string, PlayerHpEntry>(),
           },
           false,
           "room/clearRoom"
@@ -121,3 +155,11 @@ export const selectEvents = (state: RoomStore): RoomState["events"] =>
 export const selectIsConnected = (
   state: RoomStore
 ): RoomState["isConnected"] => state.isConnected;
+
+/**
+ * Selects the playerHp map from the room store.
+ * @param state - The current room store state.
+ * @returns A Map of user_id to HP snapshot.
+ */
+export const selectPlayerHp = (state: RoomStore): RoomState["playerHp"] =>
+  state.playerHp;

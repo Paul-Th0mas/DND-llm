@@ -36,4 +36,16 @@ export interface DungeonActions {
   setError: (error: string | null) => void;
   /** Clears all dungeon state (active dungeon, loading, error). */
   clearDungeon: () => void;
+  /**
+   * Updates the current_room_index on the active dungeon (US-069).
+   * Called when a room_advanced WebSocket event is received.
+   * @param index - The new room index.
+   */
+  setCurrentRoomIndex: (index: number) => void;
+  /**
+   * Appends a completed stage index to the active dungeon (US-069).
+   * Called when a quest_stage_advanced WebSocket event is received.
+   * @param stageIndex - The index of the completed quest stage.
+   */
+  markQuestStageComplete: (stageIndex: number) => void;
 }

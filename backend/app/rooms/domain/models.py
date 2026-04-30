@@ -67,6 +67,21 @@ class RoomPlayer:
     joined_at: datetime
 
 
+@dataclass
+class PlayerState:
+    """
+    Combat state snapshot for one player in a room session (US-080).
+    Persisted to the database so HP survives server restarts.
+    """
+
+    room_id: uuid.UUID
+    user_id: uuid.UUID
+    current_hp: int
+    max_hp: int
+    downed: bool
+    status_effects: list[str] = field(default_factory=list)
+
+
 # ---------------------------------------------------------------------------
 # Aggregate Root
 # ---------------------------------------------------------------------------

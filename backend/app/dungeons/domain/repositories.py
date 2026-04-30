@@ -40,3 +40,26 @@ class DungeonRepository(ABC):
         @param campaign_id - The UUID of the campaign.
         """
         ...
+
+    @abstractmethod
+    def update_room_index(
+        self, dungeon_id: uuid.UUID, room_index: int
+    ) -> Dungeon | None:
+        """
+        Set current_room_index on the dungeon and return the updated aggregate.
+
+        Returns None if the dungeon does not exist.
+        """
+        ...
+
+    @abstractmethod
+    def complete_quest_stage(
+        self, dungeon_id: uuid.UUID, stage_index: int
+    ) -> Dungeon | None:
+        """
+        Append stage_index to completed_stage_indices and return the updated aggregate.
+
+        Idempotent -- calling with the same stage_index twice is safe.
+        Returns None if the dungeon does not exist.
+        """
+        ...

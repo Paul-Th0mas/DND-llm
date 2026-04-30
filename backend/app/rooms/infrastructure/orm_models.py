@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Uuid
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -52,3 +52,30 @@ class RoomPlayerORM(Base):
         Uuid, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
     )
     joined_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class RoomPlayerStateORM(Base):
+    """
+    Persists per-player combat state (HP, status effects, downed flag) for a
+    given room session. Allows HP to survive server restarts (US-080).
+
+    Composite PK: one row per (room, user) pair. Upserted on every HP change.
+    CASCADE DELETE on room_id ensures rows are cleaned up when the room is deleted.
+    """
+
+    __tablename__ = "room_player_state"
+
+    room_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("rooms.id", ondelete="CASCADE"), primary_key=True
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    current_hp: Mapped[int] = mapped_column(Integer, nullable=False, default=10)
+    max_hp: Mapped[int] = mapped_column(Integer, nullable=False, default=10)
+    downed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # JSON array of status effect strings stored as TEXT. Null treated as "[]" on read.
+    status_effects: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )

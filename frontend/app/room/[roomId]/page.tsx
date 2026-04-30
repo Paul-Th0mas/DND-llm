@@ -94,7 +94,8 @@ export default function RoomPage(): React.ReactElement {
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",
-        bgcolor: "background.default",
+        // Surface base — warm parchment for the full viewport.
+        bgcolor: "#fff8f1",
       }}
     >
       {/* Top bar — full width */}
@@ -105,13 +106,14 @@ export default function RoomPage(): React.ReactElement {
         {/* Left: player list */}
         <PlayerSidebar />
 
-        {/* Centre: feed + input stack */}
+        {/* Centre: event feed + interaction bar (surface-container-low bg) */}
         <Box
           sx={{
             flex: 1,
             display: "flex",
             flexDirection: "column",
             overflow: "hidden",
+            bgcolor: "#fdf2df",
           }}
         >
           {/* Event feed — fills remaining vertical space */}
@@ -130,6 +132,7 @@ export default function RoomPage(): React.ReactElement {
           token={token ?? ""}
           roomId={roomId}
           isDm={isDm ?? false}
+          send={send}
         />
       </Box>
     </Box>
