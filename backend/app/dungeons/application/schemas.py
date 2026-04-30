@@ -138,6 +138,7 @@ class GameEffectResponse(BaseModel):
     value: int | None = None
     status: str | None = None
     item_id: str | None = None
+    description: str = ""
 
     @classmethod
     def from_domain(cls, ge: GameEffect) -> "GameEffectResponse":
@@ -148,6 +149,7 @@ class GameEffectResponse(BaseModel):
             value=ge.value,
             status=ge.status,
             item_id=ge.item_id,
+            description=ge.description,
         )
 
 

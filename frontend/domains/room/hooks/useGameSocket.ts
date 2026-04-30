@@ -42,8 +42,15 @@ export function useGameSocket(
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const retryDelayRef = useRef<number>(INITIAL_RETRY_MS);
 
-  const { setConnected, setPlayers, addPlayer, removePlayer, addEvent } =
-    useRoomStore.getState();
+  const {
+    setConnected,
+    setPlayers,
+    addPlayer,
+    removePlayer,
+    addEvent,
+    setPlayerHp,
+    setAllPlayerHp,
+  } = useRoomStore.getState();
 
   const connect = useCallback((): void => {
     const url = `${WS_BASE}/api/v1/ws/${roomId}?token=${roomToken}`;
@@ -72,17 +79,28 @@ export function useGameSocket(
 
       switch (gameEvent.type) {
         case "room_state":
-          // Server sends only IDs; seed the player list with placeholder names
-          // until player_joined events enrich them.
+          // Players now come as objects with user_id, username, connected.
           setPlayers(
-            gameEvent.players.map((id) => ({ id, name: id, role: "player" }))
+            gameEvent.players.map((p) => ({
+              id: p.user_id,
+              name: p.username,
+              role: "player" as const,
+            }))
           );
+          // Restore HP state from the room_state payload.
+          setAllPlayerHp(gameEvent.player_hp);
+          // Restore current room index if the session is already running.
+          if (gameEvent.current_room_index !== null) {
+            useDungeonStore
+              .getState()
+              .setCurrentRoomIndex(gameEvent.current_room_index);
+          }
           break;
 
         case "player_joined":
           addPlayer({
             id: gameEvent.user_id,
-            name: gameEvent.name ?? gameEvent.user_id,
+            name: gameEvent.username,
             role: gameEvent.role,
           });
           break;

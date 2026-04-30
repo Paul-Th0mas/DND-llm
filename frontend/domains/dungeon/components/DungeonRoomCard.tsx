@@ -283,7 +283,7 @@ export function DungeonRoomCard({ room, index = 0, onRollCheck }: DungeonRoomCar
           )}
 
           {/* Loot table (TREASURE rooms) */}
-          {room.loot_table !== undefined && room.loot_table !== null && room.loot_table.length > 0 && (
+          {room.loot_table !== null && room.loot_table.length > 0 && (
             <Box>
               <Divider sx={{ borderColor: "#C9B59C", mb: 1 }} />
               <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
@@ -310,7 +310,7 @@ export function DungeonRoomCard({ room, index = 0, onRollCheck }: DungeonRoomCar
           )}
 
           {/* NPC inventory (SHOP rooms) */}
-          {room.npc_data !== undefined && room.npc_data !== null && room.npc_data.length > 0 && (
+          {room.npc_data !== null && room.npc_data.length > 0 && (
             <Box>
               <Divider sx={{ borderColor: "#C9B59C", mb: 1 }} />
               <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
@@ -340,7 +340,7 @@ export function DungeonRoomCard({ room, index = 0, onRollCheck }: DungeonRoomCar
           )}
 
           {/* Legacy NPC names fallback (when npc_data is absent) */}
-          {(room.npc_data === undefined || room.npc_data === null) && npcNames.length > 0 && (
+          {room.npc_data === null && npcNames.length > 0 && (
             <Box>
               <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
                 NPCs:
@@ -354,7 +354,7 @@ export function DungeonRoomCard({ room, index = 0, onRollCheck }: DungeonRoomCar
           )}
 
           {/* Game effects (US-071): rendered per effect type if mechanics present */}
-          {room.mechanics !== undefined && room.mechanics !== null && room.mechanics.game_effects.length > 0 && (
+          {room.mechanics !== null && room.mechanics.game_effects.length > 0 && (
             <Box>
               <Divider sx={{ borderColor: "#C9B59C", mb: 1 }} />
               <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>

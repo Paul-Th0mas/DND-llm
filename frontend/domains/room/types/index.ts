@@ -33,18 +33,40 @@ export type DiceSides = 4 | 6 | 8 | 10 | 12 | 20;
 
 // ---- WebSocket event types (server -> client) ----
 
-/** Emitted on connection to sync the full list of connected player IDs. */
+/** A player entry as sent in the room_state players array. */
+export interface RoomStatePlayer {
+  readonly user_id: string;
+  readonly username: string;
+  readonly connected: boolean;
+}
+
+/** An HP entry as sent in the room_state player_hp array. */
+export interface RoomStatePlayerHp {
+  readonly user_id: string;
+  readonly current_hp: number;
+  readonly max_hp: number;
+  readonly downed: boolean;
+  readonly status_effects: readonly string[];
+}
+
+/** Emitted on connection to sync the full room state for all connected players. */
 export interface RoomStateEvent {
   readonly type: "room_state";
-  readonly players: readonly string[];
+  readonly players: ReadonlyArray<RoomStatePlayer>;
+  readonly player_hp: ReadonlyArray<RoomStatePlayerHp>;
+  readonly session_started: boolean;
+  readonly session_ended: boolean;
+  readonly current_room_index: number | null;
+  readonly current_quest_stage: number | null;
+  readonly recent_events: readonly unknown[];
+  readonly current_mechanics: readonly unknown[];
 }
 
 /** Emitted when a new player connects to the room. */
 export interface PlayerJoinedEvent {
   readonly type: "player_joined";
   readonly user_id: string;
-  /** Display name of the joining player, if provided by the server. */
-  readonly name?: string;
+  readonly username: string;
   readonly role: "dm" | "player";
 }
 
@@ -149,6 +171,87 @@ export interface RoomEventOutcomeEvent {
   readonly narrative?: string;
 }
 
+/**
+ * Emitted to all participants when a player action resolves against room mechanics (US-073).
+ * effects_applied values correspond to the EffectType enum in the dungeon domain.
+ */
+export interface ResolutionEvent {
+  readonly type: "event:resolution";
+  readonly player_id: string;
+  /** Display name of the acting player, if provided by the server. */
+  readonly username?: string;
+  readonly action: string;
+  /** The d20 roll result plus stat modifier. Null for auto-success (no DC check). */
+  readonly roll: number | null;
+  /** The Difficulty Class for the check. Null when no DC check was required. */
+  readonly dc: number | null;
+  readonly outcome: "success" | "failure";
+  /** List of effect type strings applied (e.g. ["DAMAGE", "APPLY_STATUS"]). */
+  readonly effects_applied: readonly string[];
+  readonly narrative: string;
+}
+
+/**
+ * Emitted to all participants when a player takes DAMAGE and their HP changes (US-073).
+ */
+export interface PlayerUpdateEvent {
+  readonly type: "state:player_update";
+  readonly player_id: string;
+  readonly current_hp: number;
+  readonly max_hp: number;
+  readonly downed: boolean;
+  readonly status_effects: readonly string[];
+}
+
+/**
+ * Emitted to all participants when a player receives loot on success (US-073).
+ */
+export interface LootAwardedEvent {
+  readonly type: "loot:awarded";
+  readonly player_id: string;
+  /** Display name of the player receiving loot, if provided by the server. */
+  readonly username?: string;
+  readonly items: ReadonlyArray<{
+    readonly item_id: string;
+    readonly name: string;
+    readonly quantity: number;
+  }>;
+}
+
+/**
+ * Emitted to all participants when an UNLOCK_PATH effect fires (US-073).
+ */
+export interface PathUnlockedEvent {
+  readonly type: "event:path_unlocked";
+  readonly room_index: number;
+  readonly target: string | null;
+}
+
+/**
+ * Emitted to all participants when a SPAWN_ENEMY effect fires (US-073).
+ */
+export interface EnemySpawnedEvent {
+  readonly type: "event:enemy_spawned";
+  readonly room_index: number;
+  readonly enemy_id: string | null;
+}
+
+/**
+ * Emitted to all participants when the DM attacks an enemy targeting a player (US-082).
+ */
+export interface EnemyAttackResultEvent {
+  readonly type: "event:enemy_attack_result";
+  readonly enemy_id: string;
+  readonly target_player_id: string;
+  readonly username: string;
+  readonly roll: number;
+  readonly ac: number;
+  readonly hit: boolean;
+  readonly damage: number;
+  readonly new_hp: number;
+  readonly downed: boolean;
+}
+
 /** Sent to the sender when they attempted a DM-only action without the DM role. */
 export interface PermissionDeniedEvent {
   readonly type: "permission_denied";
@@ -175,4 +278,10 @@ export type GameEvent =
   | QuestStageAdvancedEvent
   | RoomEventOutcomeEvent
   | PermissionDeniedEvent
-  | ValidationErrorEvent;
+  | ValidationErrorEvent
+  | ResolutionEvent
+  | PlayerUpdateEvent
+  | LootAwardedEvent
+  | PathUnlockedEvent
+  | EnemySpawnedEvent
+  | EnemyAttackResultEvent;

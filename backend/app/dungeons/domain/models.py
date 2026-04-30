@@ -162,6 +162,7 @@ class GameEffect:
     value: int | None = None
     status: str | None = None
     item_id: str | None = None
+    description: str = ""
 
 
 @dataclass(frozen=True)

@@ -358,6 +358,7 @@ class StubDungeonNarrator(DungeonNarratorPort):
                             dc=None,
                         ),
                         value=6,
+                        description="Trap fires on enemy death, dealing 1d6 damage.",
                     ),
                 ),
             )
@@ -388,6 +389,7 @@ class StubDungeonNarrator(DungeonNarratorPort):
                             dc=None,
                         ),
                         item_id="boss_trophy",
+                        description="Boss defeated -- claim the trophy.",
                     ),
                 ),
             )
@@ -413,6 +415,7 @@ class StubDungeonNarrator(DungeonNarratorPort):
                             check_stat=None,
                             dc=None,
                         ),
+                        description="Opening the chest unlocks a hidden exit.",
                     ),
                 ),
             )
@@ -643,6 +646,11 @@ class GeminiDungeonNarrator(DungeonNarratorPort):
                 item_id_val = ed.get("item_id")
                 item_id = str(item_id_val) if isinstance(item_id_val, str) else None
 
+                description_val = md.get("description", "")
+                description = (
+                    str(description_val) if isinstance(description_val, str) else ""
+                )
+
                 game_effects.append(
                     GameEffect(
                         effect_type=effect_type,
@@ -650,6 +658,7 @@ class GeminiDungeonNarrator(DungeonNarratorPort):
                         value=value,
                         status=status,
                         item_id=item_id,
+                        description=description,
                     )
                 )
 

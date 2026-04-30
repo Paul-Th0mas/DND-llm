@@ -130,6 +130,7 @@ def _game_effect_from_dict(raw: object) -> GameEffect | None:
         value=_nullable_int(d, "value"),
         status=_nullable_str(d, "status"),
         item_id=_nullable_str(d, "item_id"),
+        description=_str(d, "description"),
     )
 
 
@@ -376,6 +377,7 @@ def _room_to_dict(room: DungeonRoom) -> dict[str, object]:
                     "value": ge.value,
                     "status": ge.status,
                     "item_id": ge.item_id,
+                    "description": ge.description,
                 }
                 for ge in m.game_effects
             ],

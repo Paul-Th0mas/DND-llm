@@ -144,6 +144,17 @@ export interface RoomMechanics {
   readonly game_effects: readonly GameEffect[];
 }
 
+/**
+ * A single mechanic entry in the dungeon room's mechanics array (US-073).
+ * Represents one trigger-effects-description unit from LLM generation.
+ * Used when iterating room.mechanics to match player actions.
+ */
+export interface RoomMechanic {
+  readonly trigger: TriggerData;
+  readonly effects: readonly GameEffect[];
+  readonly description: string;
+}
+
 /** A single loot table entry for TREASURE rooms. */
 export interface LootItem {
   readonly item: string;
@@ -195,11 +206,11 @@ export interface DungeonRoom {
   // Legacy flat fields -- present in old records.
   readonly enemy_names: readonly string[];
   readonly npc_names: readonly string[];
-  // Structured fields added in US-063 to US-071.
-  readonly enemies?: EnemyData | null;
-  readonly mechanics?: RoomMechanics | null;
-  readonly loot_table?: readonly LootItem[] | null;
-  readonly npc_data?: readonly NpcData[] | null;
+  // Structured fields added in US-063 to US-071. Non-optional; callers must handle null.
+  readonly enemies: EnemyData | null;
+  readonly mechanics: RoomMechanics | null;
+  readonly loot_table: readonly LootItem[] | null;
+  readonly npc_data: readonly NpcData[] | null;
 }
 
 /**
